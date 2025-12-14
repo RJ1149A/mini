@@ -1,0 +1,73 @@
+# ⚡ Quick Deploy Guide - 5 Minutes!
+
+## Fastest Way: Vercel (Recommended)
+
+### Step 1: Push to GitHub (2 minutes)
+
+```bash
+cd student-app
+
+# If you haven't initialized git yet:
+git init
+git add .
+git commit -m "Ready to deploy"
+
+# Create a new repo on GitHub.com, then:
+git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+git branch -M main
+git push -u origin main
+```
+
+### Step 2: Deploy to Vercel (3 minutes)
+
+1. **Go to:** [vercel.com](https://vercel.com)
+2. **Sign up** with GitHub (free)
+3. **Click:** "Add New Project"
+4. **Select** your repository
+5. **Add Environment Variables:**
+   - Click "Environment Variables"
+   - Add these 6 variables:
+
+```
+NEXT_PUBLIC_FIREBASE_API_KEY = AIzaSyDjnwB-PQNbwZTk0XmjPzVvwCe0QcZFnGI
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN = mini-f098a.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID = mini-f098a
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET = mini-f098a.firebasestorage.app
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID = 292457998444
+NEXT_PUBLIC_FIREBASE_APP_ID = 1:292457998444:web:482749988156f58aa85049
+```
+
+6. **Click:** "Deploy"
+7. **Wait 2-3 minutes** ⏳
+8. **Done!** 🎉 You'll get a URL like: `https://your-app.vercel.app`
+
+### Step 3: Update Firebase (1 minute)
+
+1. Go to [Firebase Console](https://console.firebase.google.com/)
+2. Select project: **mini-f098a**
+3. Go to **Authentication** → **Settings** → **Authorized domains**
+4. Click **"Add domain"**
+5. Add your Vercel URL (e.g., `your-app.vercel.app`)
+6. Click **"Add"**
+
+## 🎉 Share with Friends!
+
+Your app is now live! Share the Vercel URL with your friends.
+
+They can:
+- Sign up with `@miet.ac.in` email
+- Use all features (Feed, Messages, Batchmates, etc.)
+- Upload photos/videos
+- Chat and react to posts
+
+## 🔄 Updates
+
+Every time you push to GitHub, Vercel automatically redeploys your app!
+
+```bash
+git add .
+git commit -m "Update features"
+git push
+```
+
+That's it! Your changes go live automatically. 🚀
