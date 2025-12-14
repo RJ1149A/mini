@@ -63,11 +63,13 @@ export default function Chat({ user }: ChatProps) {
   useEffect(() => {
     const fetchActiveUsers = async () => {
       try {
+        if (!user?.uid) return;
+
         const usersSnapshot = await getDocs(collection(db, 'users'));
         const usersList: ActiveUser[] = [];
 
         for (const userDoc of usersSnapshot.docs) {
-          if (userDoc.id === user?.uid) continue; // Skip current user
+          if (userDoc.id === user.uid) continue; // Skip current user
 
           const userData = userDoc.data();
 
@@ -95,24 +97,31 @@ export default function Chat({ user }: ChatProps) {
           // Check friend request status
           let friendRequestStatus: 'none' | 'pending' | 'accepted' | 'sent' = 'none';
           
-          // Check if sent request
-          const sentReqDoc = await getDoc(doc(db, 'friendRequests', `${user.uid}_${userDoc.id}`));
-          if (sentReqDoc.exists()) {
-            const reqData = sentReqDoc.data();
-            if (reqData.status === 'accepted') {
-              friendRequestStatus = 'accepted';
+          try {
+            // Check if sent request
+            const sentReqDoc = await getDoc(doc(db, 'friendRequests', `${user.uid}_${userDoc.id}`));
+            if (sentReqDoc.exists()) {
+              const reqData = sentReqDoc.data();
+              if (reqData.status === 'accepted') {
+                friendRequestStatus = 'accepted';
+              } else {
+                friendRequestStatus = 'sent';
+              }
             } else {
-              friendRequestStatus = 'sent';
+              // Check if received request
+              const receivedReqDoc = await getDoc(doc(db, 'friendRequests', `${userDoc.id}_${user.uid}`));
+              if (receivedReqDoc.exists()) {
+                const reqData = receivedReqDoc.data();
+                if (reqData.status === 'pending') {
+                  friendRequestStatus = 'pending';
+                } else if (reqData.status === 'accepted') {
+                  friendRequestStatus = 'accepted';
+                }
+              }
             }
-          }
-          
-          // Check if received request
-          const receivedReqDoc = await getDoc(doc(db, 'friendRequests', `${userDoc.id}_${user.uid}`));
-          if (receivedReqDoc.exists()) {
-            const reqData = receivedReqDoc.data();
-            if (reqData.status === 'pending') {
-              friendRequestStatus = 'pending';
-            }
+          } catch (error) {
+            console.log('Error checking friend request status:', error);
+            friendRequestStatus = 'none';
           }
 
           usersList.push({
@@ -139,10 +148,10 @@ export default function Chat({ user }: ChatProps) {
       }
     };
 
-    if (user) {
+    if (user?.uid) {
       fetchActiveUsers();
     }
-  }, [user]);
+  }, [user?.uid]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -166,11 +175,16 @@ export default function Chat({ user }: ChatProps) {
   };
 
   const sendFriendRequest = async (targetUserId: string, targetUserName: string) => {
-    if (!user) return;
+    if (!user?.uid) {
+      console.log('User not authenticated');
+      return;
+    }
     
     setSendingRequest(targetUserId);
     try {
       const requestId = `${user.uid}_${targetUserId}`;
+      console.log('Sending friend request:', requestId);
+      
       await setDoc(doc(db, 'friendRequests', requestId), {
         fromId: user.uid,
         fromName: user.displayName || user.email?.split('@')[0] || 'Unknown',
@@ -180,6 +194,8 @@ export default function Chat({ user }: ChatProps) {
         createdAt: serverTimestamp(),
       });
 
+      console.log('Friend request sent successfully');
+      
       // Update local state
       setActiveUsers(prev => prev.map(u => 
         u.uid === targetUserId 
@@ -188,6 +204,7 @@ export default function Chat({ user }: ChatProps) {
       ));
     } catch (error) {
       console.error('Error sending friend request:', error);
+      alert('Error sending friend request. Please check if friend requests collection is created in Firebase.');
     } finally {
       setSendingRequest(null);
     }
