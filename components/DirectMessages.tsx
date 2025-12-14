@@ -16,7 +16,7 @@ import {
   setDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Send, Search, Circle } from 'lucide-react';
+import { Send, Search, Circle, Plus, Users, X } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Message {
@@ -52,10 +52,13 @@ interface DirectMessagesProps {
 export default function DirectMessages({ user }: DirectMessagesProps) {
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
+  const [allUsers, setAllUsers] = useState<ChatUser[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [showAddFriends, setShowAddFriends] = useState(false);
+  const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch all users for chat list
@@ -143,7 +146,9 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
           return 0;
         });
         
+        // Store both chat users and all users
         setChatUsers(usersList);
+        setAllUsers(usersList);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching users:', error);
@@ -245,96 +250,195 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
     }
   };
 
-  const filteredUsers = chatUsers.filter(u =>
-    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
     <div className="flex h-[calc(100vh-200px)] bg-white rounded-2xl shadow-xl overflow-hidden">
       {/* Chat List Sidebar */}
       <div className="w-1/3 border-r border-gray-200 flex flex-col bg-gradient-to-br from-purple-50 to-pink-50">
         <div className="p-4 border-b border-gray-200 bg-white">
-          <h2 className="text-xl font-bold text-gray-900 mb-3">Messages</h2>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search messages..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-            />
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-xl font-bold text-gray-900">Messages</h2>
+            <button
+              onClick={() => setShowAddFriends(!showAddFriends)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-primary-600"
+              title="Add friends to chat"
+            >
+              <Plus className="h-5 w-5" />
+            </button>
           </div>
+          
+          {!showAddFriends ? (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search messages..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+          ) : (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search batchmates..."
+                value={friendSearchQuery}
+                onChange={(e) => setFriendSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center h-full">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
-            </div>
-          ) : filteredUsers.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
-              <p>No users found</p>
-            </div>
-          ) : (
-            filteredUsers.map((chatUser) => (
-              <button
-                key={chatUser.uid}
-                onClick={() => setSelectedUser(chatUser)}
-                className={`w-full p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100 ${
-                  selectedUser?.uid === chatUser.uid ? 'bg-white shadow-md' : ''
-                }`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                      {chatUser.name.charAt(0).toUpperCase()}
-                    </div>
-                    {chatUser.isOnline && (
-                      <Circle className="absolute -bottom-1 -right-1 h-4 w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center space-x-2 flex-1 min-w-0">
-                        <p className="font-semibold text-gray-900 truncate">{chatUser.name}</p>
-                        {chatUser.pronouns && (
-                          <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full whitespace-nowrap">
-                            {chatUser.pronouns}
-                          </span>
-                        )}
-                      </div>
-                      {chatUser.unreadCount && chatUser.unreadCount > 0 && (
-                        <span className="bg-primary-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2">
-                          {chatUser.unreadCount}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center space-x-2 mb-1">
-                      {chatUser.year && (
-                        <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full">
-                          {chatUser.year}
-                        </span>
-                      )}
-                      {chatUser.section && (
-                        <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full">
-                          Sec {chatUser.section}
-                        </span>
-                      )}
-                      {chatUser.branch && (
-                        <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full truncate max-w-[100px]">
-                          {chatUser.branch.split(' ')[0]}
-                        </span>
-                      )}
-                    </div>
-                    {chatUser.lastMessage && (
-                      <p className="text-sm text-gray-600 truncate">{chatUser.lastMessage}</p>
-                    )}
-                  </div>
+          {showAddFriends ? (
+            // Add Friends View
+            <>
+              <div className="p-3 bg-white border-b border-gray-200">
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <Users className="h-4 w-4" />
+                  <span>Available Batchmates</span>
                 </div>
-              </button>
-            ))
+              </div>
+              {loading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
+                </div>
+              ) : allUsers.filter(u =>
+                (u.name.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
+                u.email.toLowerCase().includes(friendSearchQuery.toLowerCase())) &&
+                !chatUsers.find(cu => cu.uid === u.uid)
+              ).length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                  <p className="text-sm">No new batchmates to add</p>
+                </div>
+              ) : (
+                allUsers
+                  .filter(u =>
+                    (u.name.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
+                    u.email.toLowerCase().includes(friendSearchQuery.toLowerCase())) &&
+                    !chatUsers.find(cu => cu.uid === u.uid)
+                  )
+                  .map((newUser) => (
+                    <button
+                      key={newUser.uid}
+                      onClick={() => {
+                        setSelectedUser(newUser);
+                        setShowAddFriends(false);
+                      }}
+                      className="w-full p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                            {newUser.name.charAt(0).toUpperCase()}
+                          </div>
+                          {newUser.isOnline && (
+                            <Circle className="absolute -bottom-1 -right-1 h-4 w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-gray-900 truncate">{newUser.name}</p>
+                          <p className="text-sm text-gray-600 truncate">{newUser.email}</p>
+                          <div className="flex items-center space-x-2 mt-1">
+                            {newUser.year && (
+                              <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full">
+                                {newUser.year}
+                              </span>
+                            )}
+                            {newUser.section && (
+                              <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full">
+                                Sec {newUser.section}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+              )}
+            </>
+          ) : (
+            // Chat List View
+            <>
+              {loading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
+                </div>
+              ) : chatUsers.filter(u =>
+                u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                u.email.toLowerCase().includes(searchQuery.toLowerCase())
+              ).length === 0 ? (
+                <div className="p-4 text-center text-gray-500">
+                  <p>No users found</p>
+                </div>
+              ) : (
+                chatUsers
+                  .filter(u =>
+                    u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    u.email.toLowerCase().includes(searchQuery.toLowerCase())
+                  )
+                  .map((chatUser) => (
+                    <button
+                      key={chatUser.uid}
+                      onClick={() => setSelectedUser(chatUser)}
+                      className={`w-full p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100 ${
+                        selectedUser?.uid === chatUser.uid ? 'bg-white shadow-md' : ''
+                      }`}
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="relative">
+                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                            {chatUser.name.charAt(0).toUpperCase()}
+                          </div>
+                          {chatUser.isOnline && (
+                            <Circle className="absolute -bottom-1 -right-1 h-4 w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center space-x-2 flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 truncate">{chatUser.name}</p>
+                              {chatUser.pronouns && (
+                                <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full whitespace-nowrap">
+                                  {chatUser.pronouns}
+                                </span>
+                              )}
+                            </div>
+                            {chatUser.unreadCount && chatUser.unreadCount > 0 && (
+                              <span className="bg-primary-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2">
+                                {chatUser.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center space-x-2 mb-1">
+                            {chatUser.year && (
+                              <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full">
+                                {chatUser.year}
+                              </span>
+                            )}
+                            {chatUser.section && (
+                              <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full">
+                                Sec {chatUser.section}
+                              </span>
+                            )}
+                            {chatUser.branch && (
+                              <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full truncate max-w-[100px]">
+                                {chatUser.branch.split(' ')[0]}
+                              </span>
+                            )}
+                          </div>
+                          {chatUser.lastMessage && (
+                            <p className="text-sm text-gray-600 truncate">{chatUser.lastMessage}</p>
+                          )}
+                        </div>
+                      </div>
+                    </button>
+                  ))
+              )}
+            </>
           )}
         </div>
       </div>
