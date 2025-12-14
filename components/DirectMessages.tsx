@@ -501,8 +501,18 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                   return (
                     <div
                       key={message.id}
-                      className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+                      className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'} gap-2`}
                     >
+                      {!isOwnMessage && (
+                        <div className="relative flex-shrink-0 flex items-end">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-xs shadow-lg">
+                            {selectedUser?.name.charAt(0).toUpperCase()}
+                          </div>
+                          {selectedUser?.isOnline && (
+                            <Circle className="absolute -bottom-0 -right-0 h-3 w-3 text-green-500 fill-green-500 bg-white rounded-full border border-white" />
+                          )}
+                        </div>
+                      )}
                       <div
                         className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
                           isOwnMessage
@@ -522,6 +532,15 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                           </p>
                         )}
                       </div>
+                      {isOwnMessage && (
+                        <div className="relative flex-shrink-0 flex items-end">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-xs shadow-lg">
+                            {user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
+                          </div>
+                          {/* Your online status - always show as online for self */}
+                          <Circle className="absolute -bottom-0 -right-0 h-3 w-3 text-green-500 fill-green-500 bg-white rounded-full border border-white" />
+                        </div>
+                      )}
                     </div>
                   );
                 })

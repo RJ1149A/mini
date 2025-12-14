@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, where, getDocs, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Send, MessageCircle, Users, Search, Plus, MessageSquare, Circle } from 'lucide-react';
+import { Send, MessageCircle, Users, Search, Plus, MessageSquare, Circle, UserPlus, Check, Clock } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface Message {
@@ -21,6 +21,7 @@ interface ActiveUser {
   photoURL?: string;
   isOnline: boolean;
   lastSeen?: any;
+  friendRequestStatus?: 'none' | 'pending' | 'accepted' | 'sent';
 }
 
 interface ChatProps {
@@ -34,6 +35,7 @@ export default function Chat({ user }: ChatProps) {
   const [activeUsers, setActiveUsers] = useState<ActiveUser[]>([]);
   const [showActiveUsers, setShowActiveUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sendingRequest, setSendingRequest] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,6 +92,29 @@ export default function Chat({ user }: ChatProps) {
             }
           }
 
+          // Check friend request status
+          let friendRequestStatus: 'none' | 'pending' | 'accepted' | 'sent' = 'none';
+          
+          // Check if sent request
+          const sentReqDoc = await getDoc(doc(db, 'friendRequests', `${user.uid}_${userDoc.id}`));
+          if (sentReqDoc.exists()) {
+            const reqData = sentReqDoc.data();
+            if (reqData.status === 'accepted') {
+              friendRequestStatus = 'accepted';
+            } else {
+              friendRequestStatus = 'sent';
+            }
+          }
+          
+          // Check if received request
+          const receivedReqDoc = await getDoc(doc(db, 'friendRequests', `${userDoc.id}_${user.uid}`));
+          if (receivedReqDoc.exists()) {
+            const reqData = receivedReqDoc.data();
+            if (reqData.status === 'pending') {
+              friendRequestStatus = 'pending';
+            }
+          }
+
           usersList.push({
             uid: userDoc.id,
             name: userData.name || userData.email?.split('@')[0] || 'Unknown',
@@ -97,6 +122,7 @@ export default function Chat({ user }: ChatProps) {
             photoURL: userData.photoURL || '',
             isOnline,
             lastSeen,
+            friendRequestStatus,
           });
         }
 
@@ -136,6 +162,34 @@ export default function Chat({ user }: ChatProps) {
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
+    }
+  };
+
+  const sendFriendRequest = async (targetUserId: string, targetUserName: string) => {
+    if (!user) return;
+    
+    setSendingRequest(targetUserId);
+    try {
+      const requestId = `${user.uid}_${targetUserId}`;
+      await setDoc(doc(db, 'friendRequests', requestId), {
+        fromId: user.uid,
+        fromName: user.displayName || user.email?.split('@')[0] || 'Unknown',
+        toId: targetUserId,
+        toName: targetUserName,
+        status: 'pending',
+        createdAt: serverTimestamp(),
+      });
+
+      // Update local state
+      setActiveUsers(prev => prev.map(u => 
+        u.uid === targetUserId 
+          ? { ...u, friendRequestStatus: 'sent' }
+          : u
+      ));
+    } catch (error) {
+      console.error('Error sending friend request:', error);
+    } finally {
+      setSendingRequest(null);
     }
   };
 
@@ -289,12 +343,43 @@ export default function Chat({ user }: ChatProps) {
                           {activeUser.isOnline ? '● Online' : '○ Offline'}
                         </p>
                       </div>
-                      <button
-                        className="flex-shrink-0 p-2 hover:bg-primary-100 rounded-lg transition-colors text-primary-500 hover:text-primary-600"
-                        title="Start direct message"
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                      </button>
+                      {activeUser.friendRequestStatus === 'accepted' ? (
+                        <button
+                          className="flex-shrink-0 p-2 hover:bg-green-100 rounded-lg transition-colors text-green-600"
+                          title="Start direct message"
+                        >
+                          <MessageSquare className="h-4 w-4" />
+                        </button>
+                      ) : activeUser.friendRequestStatus === 'sent' ? (
+                        <button
+                          disabled
+                          className="flex-shrink-0 p-2 rounded-lg text-gray-400 cursor-not-allowed"
+                          title="Friend request sent"
+                        >
+                          <Clock className="h-4 w-4" />
+                        </button>
+                      ) : activeUser.friendRequestStatus === 'pending' ? (
+                        <button
+                          disabled
+                          className="flex-shrink-0 p-2 rounded-lg text-blue-500"
+                          title="Friend request received"
+                        >
+                          <Clock className="h-4 w-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => sendFriendRequest(activeUser.uid, activeUser.name)}
+                          disabled={sendingRequest === activeUser.uid}
+                          className="flex-shrink-0 p-2 hover:bg-primary-100 rounded-lg transition-colors text-primary-500 hover:text-primary-600 disabled:opacity-50"
+                          title="Send friend request"
+                        >
+                          {sendingRequest === activeUser.uid ? (
+                            <div className="h-4 w-4 rounded-full border-2 border-primary-500 border-t-transparent animate-spin" />
+                          ) : (
+                            <UserPlus className="h-4 w-4" />
+                          )}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))
