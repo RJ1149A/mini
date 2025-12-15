@@ -11,8 +11,6 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { s3Client, AWS_S3_BUCKET } from '@/lib/aws';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { Upload, Download, File, Search, X } from 'lucide-react';
 
 interface Material {
@@ -83,20 +81,39 @@ export default function Academia({ user, userData }: AcademiaProps) {
       const fileName = `${Date.now()}_${selectedFile.name}`;
       const filePath = `academia/${branch}/sem-${semester}/${user.uid}/${fileName}`;
 
-      const arrayBuffer = await selectedFile.arrayBuffer();
+      // Get presigned URL from backend
+      const presignResponse = await fetch('/api/upload/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filePath,
+          contentType: fileType,
+        }),
+      });
 
-      const uploadParams = {
-        Bucket: AWS_S3_BUCKET,
-        Key: filePath,
-        Body: new Uint8Array(arrayBuffer),
-        ContentType: fileType,
-      };
+      if (!presignResponse.ok) {
+        throw new Error('Failed to get presigned URL');
+      }
 
-      const command = new PutObjectCommand(uploadParams);
-      await s3Client.send(command);
+      const { presignedUrl } = await presignResponse.json();
+
+      setUploadProgress(50);
+
+      // Upload directly to S3 using presigned URL
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: selectedFile,
+        headers: {
+          'Content-Type': fileType,
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`S3 upload failed: ${uploadResponse.statusText}`);
+      }
 
       setUploadProgress(100);
-      const downloadURL = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${filePath}`;
+      const downloadURL = `https://${filePath.split('/')[0]}.s3.amazonaws.com/${filePath}`;
 
       await addDoc(collection(db, 'academiaMaterials'), {
         title: title || selectedFile.name,

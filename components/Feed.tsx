@@ -15,8 +15,6 @@ import {
   where
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { s3Client, AWS_S3_BUCKET } from '@/lib/aws';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { 
   Upload, 
   Image as ImageIcon, 
@@ -202,35 +200,51 @@ export default function Feed({ user, userData }: FeedProps) {
 
     setUploading(true);
     setUploadProgress(0);
-    setUploadStatus('Uploading...');
+    setUploadStatus('Requesting upload permission...');
 
     try {
       const fileType = selectedFile.type.startsWith('image/') ? 'photo' : 'video';
       const fileName = `${Date.now()}_${selectedFile.name}`;
       const filePath = `feed/${user.uid}/${fileName}`;
 
-      console.log('Starting S3 upload:', { filePath, fileSize: selectedFile.size, bucket: AWS_S3_BUCKET });
+      // Get presigned URL from backend
+      const presignResponse = await fetch('/api/upload/presigned-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          filePath,
+          contentType: selectedFile.type,
+        }),
+      });
 
-      // Convert File to ArrayBuffer for S3
-      const arrayBuffer = await selectedFile.arrayBuffer();
+      if (!presignResponse.ok) {
+        throw new Error('Failed to get presigned URL');
+      }
 
-      // Upload to AWS S3
-      const uploadParams = {
-        Bucket: AWS_S3_BUCKET,
-        Key: filePath,
-        Body: new Uint8Array(arrayBuffer),
-        ContentType: selectedFile.type,
-      };
+      const { presignedUrl } = await presignResponse.json();
+      console.log('Got presigned URL, uploading to S3...');
 
-      const command = new PutObjectCommand(uploadParams);
-      const response = await s3Client.send(command);
+      setUploadStatus('Uploading...');
 
-      console.log('S3 upload successful:', response);
+      // Upload directly to S3 using presigned URL
+      const uploadResponse = await fetch(presignedUrl, {
+        method: 'PUT',
+        body: selectedFile,
+        headers: {
+          'Content-Type': selectedFile.type,
+        },
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error(`S3 upload failed: ${uploadResponse.statusText}`);
+      }
+
+      console.log('S3 upload successful');
       setUploadProgress(100);
       setUploadStatus('Processing...');
 
       // Construct public URL
-      const downloadURL = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${filePath}`;
+      const downloadURL = `https://${filePath.split('/')[2]}.s3.amazonaws.com/${filePath}`;
       console.log('Public URL:', downloadURL);
 
       setUploadStatus('Saving post...');

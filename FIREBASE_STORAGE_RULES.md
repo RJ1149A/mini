@@ -53,6 +53,15 @@ service firebase.storage {
         request.resource.size < 52428800; // 50MB limit
     }
 
+    // Academia folder - branch and semester structure, users upload inside their userId folder
+    match /academia/{branch}/sem-{sem}/{userId}/{fileName} {
+      allow write: if
+        request.auth != null &&
+        request.auth.uid == userId &&
+        request.auth.token.email.matches('.*@miet\\.ac\\.in$') &&
+        request.resource.size < 52428800; // 50MB limit
+    }
+
     // Public uploads folder
     match /uploads/{fileName} {
       allow write: if 
