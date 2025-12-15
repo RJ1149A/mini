@@ -7,23 +7,39 @@ service firebase.storage {
       allow read: if request.auth != null;
     }
 
-    // TEMPORARY: Allow any authenticated user to write (for testing)
-    // This is permissive but safe (requires valid authentication)
-    // After testing uploads work, we'll revert to strict rules
-    match /feed/{allFiles=**} {
-      allow write: if request.auth != null && request.resource.size < 52428800;
+    // Feed folder - users can upload their own photos/videos
+    match /feed/{userId}/{fileName} {
+      allow write: if 
+        request.auth != null && 
+        request.auth.uid == userId &&
+        request.auth.token.email.matches('.*@miet\\.ac\\.in$') &&
+        request.resource.size < 52428800; // 50MB limit
     }
 
-    match /media/{allFiles=**} {
-      allow write: if request.auth != null && request.resource.size < 52428800;
+    // Media folder - users can upload their own photos/videos
+    match /media/{userId}/{fileName} {
+      allow write: if 
+        request.auth != null && 
+        request.auth.uid == userId &&
+        request.auth.token.email.matches('.*@miet\\.ac\\.in$') &&
+        request.resource.size < 52428800; // 50MB limit
     }
 
-    match /academia/{allFiles=**} {
-      allow write: if request.auth != null && request.resource.size < 52428800;
+    // Academia folder - branch and semester structure, users upload inside their userId folder
+    match /academia/{branch}/sem-{sem}/{userId}/{fileName} {
+      allow write: if
+        request.auth != null &&
+        request.auth.uid == userId &&
+        request.auth.token.email.matches('.*@miet\\.ac\\.in$') &&
+        request.resource.size < 52428800; // 50MB limit
     }
 
-    match /uploads/{allFiles=**} {
-      allow write: if request.auth != null && request.resource.size < 52428800;
+    // Public uploads folder
+    match /uploads/{fileName} {
+      allow write: if 
+        request.auth != null &&
+        request.auth.token.email.matches('.*@miet\\.ac\\.in$') &&
+        request.resource.size < 52428800; // 50MB limit
     }
   }
 }
