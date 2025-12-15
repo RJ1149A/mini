@@ -14,8 +14,8 @@ import {
   getDocs,
   where
 } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import { 
   Upload, 
   Image as ImageIcon, 
@@ -205,57 +205,57 @@ export default function Feed({ user, userData }: FeedProps) {
 
     try {
       const fileType = selectedFile.type.startsWith('image/') ? 'photo' : 'video';
-      const fileName = `${user.uid}_${Date.now()}_${selectedFile.name}`;
-      const storageRef = ref(storage, `feed/${fileName}`);
+      const fileName = `${Date.now()}_${selectedFile.name}`;
+      const filePath = `feed/${user.uid}/${fileName}`;
 
-      // Use resumable upload for progress tracking
-      const uploadTask = uploadBytesResumable(storageRef, selectedFile);
+      // Upload to Supabase Storage with progress tracking
+      const { data, error: uploadError } = await supabase.storage
+        .from('student-app')
+        .upload(filePath, selectedFile, {
+          onUploadProgress: (progress) => {
+            const percentComplete = Math.round((progress.loaded / progress.total) * 100);
+            setUploadProgress(percentComplete);
+            setUploadStatus(`Uploading... ${percentComplete}%`);
+          },
+        });
 
-      // Track upload progress
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(progress);
-          setUploadStatus(`Uploading... ${Math.round(progress)}%`);
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        setUploadStatus('Upload failed. Please try again.');
+        setUploading(false);
+        return;
+      }
+
+      // Get public URL for the uploaded file
+      const { data: publicData } = supabase.storage
+        .from('student-app')
+        .getPublicUrl(filePath);
+
+      const downloadURL = publicData?.publicUrl;
+
+      setUploadStatus('Saving post...');
+      await addDoc(collection(db, 'feedPosts'), {
+        url: downloadURL,
+        type: fileType,
+        caption: caption.trim() || '',
+        postedBy: user.uid,
+        postedByName: userData?.name || user.email?.split('@')[0] || 'Anonymous',
+        postedByEmail: user.email,
+        timestamp: serverTimestamp(),
+        reactions: {
+          iloveu: [],
+          kataiZeher: [],
+          kyaDekhLiya: [],
         },
-        (error) => {
-          console.error('Upload error:', error);
-          setUploadStatus('Upload failed. Please try again.');
-          setUploading(false);
-        },
-        async () => {
-          // Upload completed
-          setUploadStatus('Processing...');
-          setUploadProgress(100);
-          
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+      });
 
-          setUploadStatus('Saving post...');
-          await addDoc(collection(db, 'feedPosts'), {
-            url: downloadURL,
-            type: fileType,
-            caption: caption.trim() || '',
-            postedBy: user.uid,
-            postedByName: userData?.name || user.email?.split('@')[0] || 'Anonymous',
-            postedByEmail: user.email,
-            timestamp: serverTimestamp(),
-            reactions: {
-              iloveu: [],
-              kataiZeher: [],
-              kyaDekhLiya: [],
-            },
-          });
-
-          setSelectedFile(null);
-          setPreview(null);
-          setCaption('');
-          setUploadProgress(0);
-          setUploadStatus('');
-          setShowUploadModal(false);
-          setUploading(false);
-        }
-      );
+      setSelectedFile(null);
+      setPreview(null);
+      setCaption('');
+      setUploadProgress(0);
+      setUploadStatus('');
+      setShowUploadModal(false);
+      setUploading(false);
     } catch (error) {
       console.error('Error uploading:', error);
       setUploadStatus('Upload failed. Please try again.');

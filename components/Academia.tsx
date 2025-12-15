@@ -10,8 +10,8 @@ import {
   serverTimestamp,
   getDocs
 } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import { Upload, Download, File, Search, X } from 'lucide-react';
 
 interface Material {
@@ -79,45 +79,49 @@ export default function Academia({ user, userData }: AcademiaProps) {
 
     try {
       const fileType = selectedFile.type || 'application/octet-stream';
-      const fileName = `${user.uid}/${Date.now()}_${selectedFile.name}`;
-      const storageRef = ref(storage, `academia/${branch}/sem-${semester}/${fileName}`);
+      const fileName = `${Date.now()}_${selectedFile.name}`;
+      const filePath = `academia/${branch}/sem-${semester}/${user.uid}/${fileName}`;
 
-      const uploadTask = uploadBytesResumable(storageRef, selectedFile);
+      const { data, error: uploadError } = await supabase.storage
+        .from('student-app')
+        .upload(filePath, selectedFile, {
+          onUploadProgress: (progress) => {
+            const percentComplete = Math.round((progress.loaded / progress.total) * 100);
+            setUploadProgress(percentComplete);
+          },
+        });
 
-      uploadTask.on(
-        'state_changed',
-        (snapshot) => {
-          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-          setUploadProgress(Math.round(progress));
-        },
-        (error) => {
-          console.error('Upload error:', error);
-          alert('Upload failed. See console for details.');
-          setUploading(false);
-        },
-        async () => {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+      if (uploadError) {
+        console.error('Upload error:', uploadError);
+        alert('Upload failed. See console for details.');
+        setUploading(false);
+        return;
+      }
 
-          await addDoc(collection(db, 'academiaMaterials'), {
-            title: title || selectedFile.name,
-            branch,
-            semester,
-            url: downloadURL,
-            fileType: fileType,
-            uploadedBy: user.uid,
-            uploadedByName: userData?.name || user.email?.split('@')[0] || 'Unknown',
-            description: description || '',
-            timestamp: serverTimestamp()
-          });
+      const { data: publicData } = supabase.storage
+        .from('student-app')
+        .getPublicUrl(filePath);
 
-          setSelectedFile(null);
-          setTitle('');
-          setDescription('');
-          setShowUploadModal(false);
-          setUploading(false);
-          setUploadProgress(0);
-        }
-      );
+      const downloadURL = publicData?.publicUrl;
+
+      await addDoc(collection(db, 'academiaMaterials'), {
+        title: title || selectedFile.name,
+        branch,
+        semester,
+        url: downloadURL,
+        fileType: fileType,
+        uploadedBy: user.uid,
+        uploadedByName: userData?.name || user.email?.split('@')[0] || 'Unknown',
+        description: description || '',
+        timestamp: serverTimestamp()
+      });
+
+      setSelectedFile(null);
+      setTitle('');
+      setDescription('');
+      setShowUploadModal(false);
+      setUploading(false);
+      setUploadProgress(0);
     } catch (error) {
       console.error('Error uploading file:', error);
       alert('Error uploading file. Please try again.');

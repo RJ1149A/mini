@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, listAll } from 'firebase/storage';
-import { db, storage } from '@/lib/firebase';
+import { db } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import { Upload, Image as ImageIcon, Video as VideoIcon, X } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -66,11 +66,25 @@ export default function MediaGallery({ user, userData }: MediaGalleryProps) {
     setUploading(true);
     try {
       const fileType = selectedFile.type.startsWith('image/') ? 'photo' : 'video';
-      const fileName = `${user.uid}/${Date.now()}_${selectedFile.name}`;
-      const storageRef = ref(storage, `media/${fileName}`);
+      const fileName = `${Date.now()}_${selectedFile.name}`;
+      const filePath = `media/${user.uid}/${fileName}`;
 
-      await uploadBytes(storageRef, selectedFile);
-      const downloadURL = await getDownloadURL(storageRef);
+      const { data, error: uploadError } = await supabase.storage
+        .from('student-app')
+        .upload(filePath, selectedFile);
+
+      if (uploadError) {
+        console.error('Error uploading file:', uploadError);
+        alert('Error uploading file. Please try again.');
+        setUploading(false);
+        return;
+      }
+
+      const { data: publicData } = supabase.storage
+        .from('student-app')
+        .getPublicUrl(filePath);
+
+      const downloadURL = publicData?.publicUrl;
 
       await addDoc(collection(db, 'media'), {
         url: downloadURL,
