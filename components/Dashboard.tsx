@@ -15,10 +15,11 @@ import Committee from './Committee';
 import Batchmates from './Batchmates';
 import Profile from './Profile';
 import Feed from './Feed';
+import Academia from './Academia';
 
 export default function Dashboard() {
   const [user] = useAuthState(auth);
-  const [activeTab, setActiveTab] = useState<'feed' | 'messages' | 'chat' | 'batchmates' | 'media' | 'committee' | 'profile'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'messages' | 'chat' | 'batchmates' | 'media' | 'committee' | 'profile' | 'academia'>('feed');
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -177,6 +178,17 @@ export default function Dashboard() {
               <UserCircle className="h-5 w-5" />
               <span>Profile</span>
             </button>
+            <button
+              onClick={() => setActiveTab('academia')}
+              className={`flex items-center space-x-2 py-4 px-4 border-b-2 font-semibold text-sm transition-all whitespace-nowrap ${
+                activeTab === 'academia'
+                  ? 'border-primary-500 text-primary-600 bg-primary-50'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <GraduationCap className="h-5 w-5" />
+              <span>Academia</span>
+            </button>
           </nav>
         </div>
       </div>
@@ -188,6 +200,7 @@ export default function Dashboard() {
         {activeTab === 'chat' && <Chat user={user} />}
         {activeTab === 'batchmates' && <Batchmates user={user} userData={userData} />}
         {activeTab === 'media' && <MediaGallery user={user} userData={userData} />}
+        {activeTab === 'academia' && <Academia user={user} userData={userData} />}
         {activeTab === 'committee' && <Committee />}
         {activeTab === 'profile' && <Profile user={user} userData={userData} onUpdate={fetchUserData} />}
       </main>
