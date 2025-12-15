@@ -11,7 +11,8 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { supabase } from '@/lib/supabase';
+import { s3Client, AWS_S3_BUCKET } from '@/lib/aws';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { Upload, Download, File, Search, X } from 'lucide-react';
 
 interface Material {
@@ -82,27 +83,20 @@ export default function Academia({ user, userData }: AcademiaProps) {
       const fileName = `${Date.now()}_${selectedFile.name}`;
       const filePath = `academia/${branch}/sem-${semester}/${user.uid}/${fileName}`;
 
-      const { data, error: uploadError } = await supabase.storage
-        .from('student-app')
-        .upload(filePath, selectedFile, {
-          onUploadProgress: (progress) => {
-            const percentComplete = Math.round((progress.loaded / progress.total) * 100);
-            setUploadProgress(percentComplete);
-          },
-        });
+      const arrayBuffer = await selectedFile.arrayBuffer();
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        alert('Upload failed. See console for details.');
-        setUploading(false);
-        return;
-      }
+      const uploadParams = {
+        Bucket: AWS_S3_BUCKET,
+        Key: filePath,
+        Body: new Uint8Array(arrayBuffer),
+        ContentType: fileType,
+      };
 
-      const { data: publicData } = supabase.storage
-        .from('student-app')
-        .getPublicUrl(filePath);
+      const command = new PutObjectCommand(uploadParams);
+      await s3Client.send(command);
 
-      const downloadURL = publicData?.publicUrl;
+      setUploadProgress(100);
+      const downloadURL = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${filePath}`;
 
       await addDoc(collection(db, 'academiaMaterials'), {
         title: title || selectedFile.name,

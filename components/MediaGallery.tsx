@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { supabase } from '@/lib/supabase';
+import { s3Client, AWS_S3_BUCKET } from '@/lib/aws';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { Upload, Image as ImageIcon, Video as VideoIcon, X } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -69,22 +70,19 @@ export default function MediaGallery({ user, userData }: MediaGalleryProps) {
       const fileName = `${Date.now()}_${selectedFile.name}`;
       const filePath = `media/${user.uid}/${fileName}`;
 
-      const { data, error: uploadError } = await supabase.storage
-        .from('student-app')
-        .upload(filePath, selectedFile);
+      const arrayBuffer = await selectedFile.arrayBuffer();
 
-      if (uploadError) {
-        console.error('Error uploading file:', uploadError);
-        alert('Error uploading file. Please try again.');
-        setUploading(false);
-        return;
-      }
+      const uploadParams = {
+        Bucket: AWS_S3_BUCKET,
+        Key: filePath,
+        Body: new Uint8Array(arrayBuffer),
+        ContentType: selectedFile.type,
+      };
 
-      const { data: publicData } = supabase.storage
-        .from('student-app')
-        .getPublicUrl(filePath);
+      const command = new PutObjectCommand(uploadParams);
+      await s3Client.send(command);
 
-      const downloadURL = publicData?.publicUrl;
+      const downloadURL = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${filePath}`;
 
       await addDoc(collection(db, 'media'), {
         url: downloadURL,

@@ -15,7 +15,8 @@ import {
   where
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { supabase } from '@/lib/supabase';
+import { s3Client, AWS_S3_BUCKET } from '@/lib/aws';
+import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { 
   Upload, 
   Image as ImageIcon, 
@@ -208,30 +209,29 @@ export default function Feed({ user, userData }: FeedProps) {
       const fileName = `${Date.now()}_${selectedFile.name}`;
       const filePath = `feed/${user.uid}/${fileName}`;
 
-      // Upload to Supabase Storage with progress tracking
-      const { data, error: uploadError } = await supabase.storage
-        .from('student-app')
-        .upload(filePath, selectedFile, {
-          onUploadProgress: (progress) => {
-            const percentComplete = Math.round((progress.loaded / progress.total) * 100);
-            setUploadProgress(percentComplete);
-            setUploadStatus(`Uploading... ${percentComplete}%`);
-          },
-        });
+      console.log('Starting S3 upload:', { filePath, fileSize: selectedFile.size, bucket: AWS_S3_BUCKET });
 
-      if (uploadError) {
-        console.error('Upload error:', uploadError);
-        setUploadStatus('Upload failed. Please try again.');
-        setUploading(false);
-        return;
-      }
+      // Convert File to ArrayBuffer for S3
+      const arrayBuffer = await selectedFile.arrayBuffer();
 
-      // Get public URL for the uploaded file
-      const { data: publicData } = supabase.storage
-        .from('student-app')
-        .getPublicUrl(filePath);
+      // Upload to AWS S3
+      const uploadParams = {
+        Bucket: AWS_S3_BUCKET,
+        Key: filePath,
+        Body: new Uint8Array(arrayBuffer),
+        ContentType: selectedFile.type,
+      };
 
-      const downloadURL = publicData?.publicUrl;
+      const command = new PutObjectCommand(uploadParams);
+      const response = await s3Client.send(command);
+
+      console.log('S3 upload successful:', response);
+      setUploadProgress(100);
+      setUploadStatus('Processing...');
+
+      // Construct public URL
+      const downloadURL = `https://${AWS_S3_BUCKET}.s3.amazonaws.com/${filePath}`;
+      console.log('Public URL:', downloadURL);
 
       setUploadStatus('Saving post...');
       await addDoc(collection(db, 'feedPosts'), {
@@ -249,6 +249,7 @@ export default function Feed({ user, userData }: FeedProps) {
         },
       });
 
+      console.log('Post saved to Firestore');
       setSelectedFile(null);
       setPreview(null);
       setCaption('');
@@ -258,6 +259,7 @@ export default function Feed({ user, userData }: FeedProps) {
       setUploading(false);
     } catch (error) {
       console.error('Error uploading:', error);
+      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       setUploadStatus('Upload failed. Please try again.');
       setUploading(false);
     }
