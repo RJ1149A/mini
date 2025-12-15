@@ -244,7 +244,8 @@ export default function Feed({ user, userData }: FeedProps) {
       setUploadStatus('Processing...');
 
       // Construct public URL
-      const downloadURL = `https://${filePath.split('/')[2]}.s3.amazonaws.com/${filePath}`;
+      const bucketName = process.env.NEXT_PUBLIC_AWS_S3_BUCKET;
+      const downloadURL = `https://${bucketName}.s3.amazonaws.com/${filePath}`;
       console.log('Public URL:', downloadURL);
 
       setUploadStatus('Saving post...');

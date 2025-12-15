@@ -113,7 +113,8 @@ export default function Academia({ user, userData }: AcademiaProps) {
       }
 
       setUploadProgress(100);
-      const downloadURL = `https://${filePath.split('/')[0]}.s3.amazonaws.com/${filePath}`;
+      const bucketName = process.env.NEXT_PUBLIC_AWS_S3_BUCKET;
+      const downloadURL = `https://${bucketName}.s3.amazonaws.com/${filePath}`;
 
       await addDoc(collection(db, 'academiaMaterials'), {
         title: title || selectedFile.name,

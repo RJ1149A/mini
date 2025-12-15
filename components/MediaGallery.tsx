@@ -97,7 +97,8 @@ export default function MediaGallery({ user, userData }: MediaGalleryProps) {
         throw new Error(`S3 upload failed: ${uploadResponse.statusText}`);
       }
 
-      const downloadURL = `https://${filePath.split('/')[1]}.s3.amazonaws.com/${filePath}`;
+      const bucketName = process.env.NEXT_PUBLIC_AWS_S3_BUCKET;
+      const downloadURL = `https://${bucketName}.s3.amazonaws.com/${filePath}`;
 
       await addDoc(collection(db, 'media'), {
         url: downloadURL,
