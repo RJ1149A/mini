@@ -83,6 +83,80 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
     }
   }, [user?.uid]);
 
+  // Fetch details for accepted friends
+  useEffect(() => {
+    if (!user?.uid || acceptedFriends.length === 0) return;
+
+    const fetchFriendDetails = async () => {
+      try {
+        const friendsData: ChatUser[] = [];
+        
+        for (const friendId of acceptedFriends) {
+          const userDoc = await getDoc(doc(db, 'users', friendId));
+          if (!userDoc.exists()) continue;
+          
+          const userData = userDoc.data();
+          
+          // Get online status
+          const statusDoc = await getDoc(doc(db, 'userStatus', friendId));
+          let isOnline = false;
+          if (statusDoc.exists()) {
+            const statusData = statusDoc.data();
+            isOnline = statusData.isOnline || false;
+            if (statusData.lastSeen) {
+              const lastSeen = statusData.lastSeen.toMillis();
+              const now = Date.now();
+              if (now - lastSeen < 60000) isOnline = true;
+            }
+          }
+          
+          // Get last message
+          const conversationId = [user.uid, friendId].sort().join('_');
+          const messagesQuery = query(
+            collection(db, 'directMessages'),
+            where('conversationId', '==', conversationId),
+            orderBy('timestamp', 'desc')
+          );
+          
+          const messagesSnapshot = await getDocs(messagesQuery);
+          let lastMessage = '';
+          let lastMessageTime = null;
+          
+          if (!messagesSnapshot.empty) {
+            const lastMsg = messagesSnapshot.docs[0].data();
+            lastMessage = lastMsg.text || '';
+            lastMessageTime = lastMsg.timestamp;
+          }
+          
+          friendsData.push({
+            uid: friendId,
+            name: userData.name || userData.email?.split('@')[0] || 'Unknown',
+            email: userData.email,
+            photoURL: userData.photoURL || '',
+            isOnline,
+            lastMessage,
+            lastMessageTime,
+            unreadCount: 0,
+            year: userData.year || '',
+            branch: userData.branch || '',
+            section: userData.section || '',
+            pronouns: userData.pronouns || '',
+          });
+        }
+        
+        setChatUsers(prev => {
+          // Remove old friends from list, add new ones
+          const nonFriends = prev.filter(u => !acceptedFriends.includes(u.uid));
+          return [...friendsData, ...nonFriends];
+        });
+      } catch (error) {
+        console.error('Error fetching friend details:', error);
+      }
+    };
+
+    fetchFriendDetails();
+  }, [user?.uid, acceptedFriends]);
+
   // Fetch all users for chat list
   useEffect(() => {
     if (!user) return;
