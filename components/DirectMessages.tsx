@@ -16,7 +16,7 @@ import {
   setDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Send, Search, Circle, Plus, Users, X, MessageSquare } from 'lucide-react';
+import { Send, Search, Circle, Plus, Users, X, MessageSquare, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
 import { UserListSkeleton } from './Skeleton';
 
@@ -263,8 +263,10 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
 
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-200px)] bg-white rounded-lg sm:rounded-2xl shadow-lg overflow-hidden pb-8 lg:pb-0">
-      {/* Chat List Sidebar */}
-      <div className="w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r border-gray-200 flex flex-col bg-gradient-to-br from-purple-50 to-pink-50">
+      {/* Chat List Sidebar - Hidden on mobile when chat is selected */}
+      <div className={`w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r border-gray-200 flex flex-col bg-gradient-to-br from-purple-50 to-pink-50 ${
+        selectedUser ? 'hidden lg:flex' : 'flex'
+      }`}>
         <div className="p-3 sm:p-4 border-b border-gray-200 bg-white">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-base sm:text-xl font-bold text-gray-900">Messages</h2>
@@ -544,57 +546,67 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
         </div>
       </div>
 
-      {/* Chat Window */}
-      <div className="flex-1 hidden lg:flex flex-col">
+      {/* Chat Window - Full width on mobile, flex on desktop */}
+      <div className={`flex-1 flex flex-col ${selectedUser ? 'flex' : 'hidden lg:flex'}`}>
         {selectedUser ? (
           <>
-            <div className="p-4 border-b border-gray-200 bg-white">
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-lg shadow-lg">
-                    {selectedUser.name.charAt(0).toUpperCase()}
-                  </div>
-                  {selectedUser.isOnline && (
-                    <Circle className="absolute -bottom-1 -right-1 h-4 w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
+            <div className="p-3 sm:p-4 border-b border-gray-200 bg-white flex items-center space-x-2 sm:space-x-3">
+              {/* Back button on mobile */}
+              <button
+                onClick={() => setSelectedUser(null)}
+                className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+                title="Back to messages"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+              
+              <div className="relative flex-shrink-0">
+                <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-lg">
+                  {selectedUser.name.charAt(0).toUpperCase()}
+                </div>
+                {selectedUser.isOnline && (
+                  <Circle className="absolute -bottom-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-1 mb-1 flex-wrap gap-1">
+                  <p className="font-bold text-gray-900 text-sm sm:text-lg truncate">{selectedUser.name}</p>
+                  {selectedUser.pronouns && (
+                    <span className="text-xs px-1 sm:px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full whitespace-nowrap hidden sm:inline">
+                      {selectedUser.pronouns}
+                    </span>
                   )}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <p className="font-bold text-gray-900 text-lg">{selectedUser.name}</p>
-                    {selectedUser.pronouns && (
-                      <span className="text-xs px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full">
-                        {selectedUser.pronouns}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center space-x-2 flex-wrap">
-                    {selectedUser.year && (
-                      <span className="text-xs px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full font-semibold">
-                        {selectedUser.year}
-                      </span>
-                    )}
-                    {selectedUser.section && (
-                      <span className="text-xs px-2 py-0.5 bg-pink-100 text-pink-700 rounded-full font-semibold">
-                        Sec {selectedUser.section}
-                      </span>
-                    )}
-                    {selectedUser.branch && (
-                      <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 rounded-full font-semibold">
-                        {selectedUser.branch.split(' ')[0]}
-                      </span>
-                    )}
-                    <span className={`text-xs ${selectedUser.isOnline ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
-                      {selectedUser.isOnline ? '● Online' : '○ Offline'}
+                <div className="flex items-center space-x-1 flex-wrap gap-1">
+                  {selectedUser.year && (
+                    <span className="text-xs px-1 sm:px-2 py-0.5 bg-primary-100 text-primary-700 rounded-full font-semibold whitespace-nowrap">
+                      {selectedUser.year}
                     </span>
-                  </div>
+                  )}
+                  {selectedUser.section && (
+                    <span className="text-xs px-1 sm:px-2 py-0.5 bg-pink-100 text-pink-700 rounded-full font-semibold whitespace-nowrap">
+                      Sec {selectedUser.section}
+                    </span>
+                  )}
+                  <span className={`text-xs ${selectedUser.isOnline ? 'text-green-600 font-semibold' : 'text-gray-400'}`}>
+                    {selectedUser.isOnline ? '● Online' : '○ Offline'}
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 bg-gray-50 space-y-4">
+            <div className="flex-1 overflow-y-auto p-3 sm:p-4 bg-gray-50 space-y-3 sm:space-y-4">
               {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-gray-500">
-                  <p>No messages yet. Start the conversation!</p>
+                  <div className="text-center">
+                    <div className="flex justify-center mb-3">
+                      <div className="p-3 bg-blue-100 rounded-full">
+                        <MessageSquare className="h-8 w-8 text-blue-500" />
+                      </div>
+                    </div>
+                    <p className="text-sm font-semibold">No messages yet</p>
+                    <p className="text-xs mt-1">Start the conversation!</p>
+                  </div>
                 </div>
               ) : (
                 messages.map((message) => {
@@ -615,7 +627,7 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                         </div>
                       )}
                       <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
+                        className={`max-w-xs lg:max-w-md px-3 sm:px-4 py-2 sm:py-3 rounded-2xl text-sm sm:text-base ${
                           isOwnMessage
                             ? 'bg-gradient-to-r from-primary-500 to-accent-pink text-white'
                             : 'bg-white text-gray-900 shadow-sm'
@@ -626,7 +638,7 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                             {message.senderName}
                           </p>
                         )}
-                        <p className="text-sm">{message.text}</p>
+                        <p>{message.text}</p>
                         {message.timestamp && (
                           <p className={`text-xs mt-1 ${isOwnMessage ? 'text-white/70' : 'text-gray-500'}`}>
                             {format(message.timestamp.toDate(), 'HH:mm')}
@@ -638,7 +650,6 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                           <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-xs shadow-lg">
                             {user?.displayName?.charAt(0).toUpperCase() || user?.email?.charAt(0).toUpperCase()}
                           </div>
-                          {/* Your online status - always show as online for self */}
                           <Circle className="absolute -bottom-0 -right-0 h-3 w-3 text-green-500 fill-green-500 bg-white rounded-full border border-white" />
                         </div>
                       )}
@@ -649,27 +660,27 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
               <div ref={messagesEndRef} />
             </div>
 
-            <form onSubmit={sendMessage} className="p-4 border-t border-gray-200 bg-white">
+            <form onSubmit={sendMessage} className="p-2 sm:p-4 border-t border-gray-200 bg-white">
               <div className="flex space-x-2">
                 <input
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   placeholder="Type a message..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm sm:text-base"
                 />
                 <button
                   type="submit"
                   disabled={!newMessage.trim()}
-                  className="px-6 py-3 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-full hover:from-primary-600 hover:to-accent-pink/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg"
+                  className="px-3 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-full hover:from-primary-600 hover:to-accent-pink/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center flex-shrink-0 shadow-lg"
                 >
-                  <Send className="h-4 w-4" />
+                  <Send className="h-4 w-4 sm:h-5 sm:w-5" />
                 </button>
               </div>
             </form>
           </>
         ) : (
-          <div className="flex-1 flex items-center justify-center bg-gray-50">
+          <div className="hidden lg:flex flex-1 items-center justify-center bg-gray-50">
             <div className="text-center text-gray-500">
               <p className="text-lg font-medium mb-2">Select a conversation</p>
               <p className="text-sm">Choose someone from the list to start chatting</p>
