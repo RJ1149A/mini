@@ -1,7 +1,21 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, limit, where, getDocs, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  serverTimestamp,
+  limit,
+  where,
+  getDocs,
+  doc,
+  getDoc,
+  updateDoc,
+  setDoc,
+} from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Send, MessageCircle, Users, Search, Plus, MessageSquare, Circle, UserPlus, Check, Clock } from 'lucide-react';
 import { format } from 'date-fns';
@@ -12,6 +26,11 @@ interface Message {
   senderEmail: string;
   senderName: string;
   timestamp: any;
+  reactions?: Record<string, string[]>; // emoji -> array of userIds
+  replyTo?: {
+    senderName: string;
+    text: string;
+  } | null;
 }
 
 interface ActiveUser {
@@ -36,6 +55,7 @@ export default function Chat({ user }: ChatProps) {
   const [showActiveUsers, setShowActiveUsers] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [sendingRequest, setSendingRequest] = useState<string | null>(null);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -167,11 +187,57 @@ export default function Chat({ user }: ChatProps) {
         senderEmail: user.email,
         senderName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
         timestamp: serverTimestamp(),
+        reactions: {},
+        replyTo: replyTo
+          ? {
+              senderName: replyTo.senderName,
+              text: replyTo.text,
+            }
+          : null,
       });
       setNewMessage('');
+      setReplyTo(null);
     } catch (error) {
       console.error('Error sending message:', error);
     }
+  };
+
+  const toggleReaction = async (messageId: string, emoji: string) => {
+    if (!user?.uid) return;
+    try {
+      const messageRef = doc(db, 'messages', messageId);
+      const snap = await getDoc(messageRef);
+      if (!snap.exists()) return;
+
+      const data = snap.data() as Message;
+      const reactions = data.reactions || {};
+      const current = reactions[emoji] ? [...reactions[emoji]] : [];
+      const userId = user.uid;
+
+      const index = current.indexOf(userId);
+      if (index > -1) {
+        current.splice(index, 1);
+      } else {
+        current.push(userId);
+      }
+
+      const updatedReactions = {
+        ...reactions,
+        [emoji]: current,
+      };
+
+      await updateDoc(messageRef, { reactions: updatedReactions });
+    } catch (error) {
+      console.error('Error toggling reaction:', error);
+    }
+  };
+
+  const startReply = (message: Message) => {
+    setReplyTo(message);
+  };
+
+  const cancelReply = () => {
+    setReplyTo(null);
   };
 
   const sendFriendRequest = async (targetUserId: string, targetUserName: string) => {
@@ -211,55 +277,121 @@ export default function Chat({ user }: ChatProps) {
   };
 
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-200px)] pb-8 lg:pb-0">
       {/* Main Chat Section */}
-      <div className="flex-1">
-        <div className="bg-white rounded-2xl shadow-xl h-[calc(100vh-250px)] flex flex-col overflow-hidden">
-          <div className="p-4 border-b border-gray-200 flex items-center space-x-3 bg-gradient-to-r from-primary-50 to-pink-50">
-            <div className="p-2 bg-gradient-to-br from-primary-500 to-accent-pink rounded-lg">
-              <MessageCircle className="h-5 w-5 text-white" />
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="bg-white rounded-lg sm:rounded-2xl shadow-lg h-full flex flex-col overflow-hidden">
+          <div className="p-3 sm:p-4 border-b border-gray-200 flex items-center space-x-2 sm:space-x-3 bg-gradient-to-r from-primary-50 to-pink-50">
+            <div className="p-2 bg-gradient-to-br from-primary-500 to-accent-pink rounded-lg flex-shrink-0">
+              <MessageCircle className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Group Chat</h2>
-            <span className="ml-auto text-sm text-gray-500">{messages.length} messages</span>
+            <h2 className="text-base sm:text-xl font-bold text-gray-900">Group Chat</h2>
+            <span className="ml-auto text-xs sm:text-sm text-gray-500 whitespace-nowrap">{messages.length} messages</span>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-gray-50 to-white">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gradient-to-b from-gray-50 to-white">
             {loading ? (
               <div className="flex items-center justify-center h-full">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
               </div>
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                <MessageCircle className="h-12 w-12 mb-3 text-gray-300" />
-                <p className="text-lg font-medium">No messages yet</p>
-                <p className="text-sm">Start the conversation!</p>
+                <MessageCircle className="h-10 sm:h-12 w-10 sm:w-12 mb-2 sm:mb-3 text-gray-300" />
+                <p className="text-base sm:text-lg font-medium">No messages yet</p>
+                <p className="text-xs sm:text-sm">Start the conversation!</p>
               </div>
             ) : (
               messages.map((message) => {
                 const isOwnMessage = message.senderEmail === user?.email;
+                const hasReactions = message.reactions && Object.keys(message.reactions).length > 0;
                 return (
                   <div
                     key={message.id}
                     className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div
-                      className={`max-w-xs lg:max-w-md px-4 py-3 rounded-2xl shadow-sm ${
-                        isOwnMessage
-                          ? 'bg-gradient-to-r from-primary-500 to-accent-pink text-white'
-                          : 'bg-white text-gray-900 border border-gray-200'
-                      }`}
-                    >
-                      {!isOwnMessage && (
-                        <p className="text-xs font-semibold mb-1 opacity-75">
-                          {message.senderName}
-                        </p>
+                    <div className="space-y-1 max-w-xs sm:max-w-sm lg:max-w-md">
+                      <div
+                        className={`px-3 sm:px-4 py-2 sm:py-3 rounded-lg sm:rounded-2xl shadow-sm text-sm sm:text-base ${
+                          isOwnMessage
+                            ? 'bg-gradient-to-r from-primary-500 to-accent-pink text-white'
+                            : 'bg-white text-gray-900 border border-gray-200'
+                        }`}
+                      >
+                        {!isOwnMessage && (
+                          <p className="text-xs font-semibold mb-1 opacity-75">
+                            {message.senderName}
+                          </p>
+                        )}
+                        {message.replyTo && (
+                          <div
+                            className={`mb-2 px-2 sm:px-3 py-1 sm:py-2 rounded-lg text-xs ${
+                              isOwnMessage ? 'bg-white/10 text-white/80' : 'bg-gray-100 text-gray-700'
+                            }`}
+                          >
+                            <p className="font-semibold">
+                              Replying to {message.replyTo.senderName}
+                            </p>
+                            <p className="line-clamp-2">{message.replyTo.text}</p>
+                          </div>
+                        )}
+                        <p>{message.text}</p>
+                        {message.timestamp && (
+                          <p
+                            className={`text-xs mt-1 ${
+                              isOwnMessage ? 'text-white/70' : 'text-gray-500'
+                            }`}
+                          >
+                            {format(message.timestamp.toDate(), 'HH:mm')}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Reactions display */}
+                      {hasReactions && (
+                        <div className="flex flex-wrap gap-1 ml-1">
+                          {Object.entries(message.reactions || {}).map(([emoji, users]) => {
+                            if (!users || users.length === 0) return null;
+                            const reacted = user?.uid && users.includes(user.uid);
+                            return (
+                              <button
+                                key={emoji}
+                                onClick={() => toggleReaction(message.id, emoji)}
+                                className={`px-2 py-0.5 rounded-full text-xs border flex items-center space-x-1 ${
+                                  reacted
+                                    ? 'bg-primary-100 border-primary-300 text-primary-700'
+                                    : 'bg-white border-gray-200 text-gray-700'
+                                }`}
+                              >
+                                <span>{emoji}</span>
+                                <span className="hidden sm:inline">{users.length}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
                       )}
-                      <p className="text-sm">{message.text}</p>
-                      {message.timestamp && (
-                        <p className={`text-xs mt-1 ${isOwnMessage ? 'text-white/70' : 'text-gray-500'}`}>
-                          {format(message.timestamp.toDate(), 'HH:mm')}
-                        </p>
-                      )}
+
+                      {/* Reaction & reply actions */}
+                      <div className="flex items-center gap-1 ml-1 text-xs text-gray-400 flex-wrap">
+                        <div className="flex gap-1">
+                          {['👍', '❤️', '😂', '🔥'].map((emoji) => (
+                            <button
+                              key={emoji}
+                              type="button"
+                              onClick={() => toggleReaction(message.id, emoji)}
+                              className="hover:scale-110 transition-transform"
+                            >
+                              {emoji}
+                            </button>
+                          ))}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => startReply(message)}
+                          className="ml-auto hover:text-primary-500 sm:ml-2"
+                        >
+                          Reply
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -268,30 +400,60 @@ export default function Chat({ user }: ChatProps) {
             <div ref={messagesEndRef} />
           </div>
 
-          <form onSubmit={sendMessage} className="p-4 border-t border-gray-200 bg-white">
-            <div className="flex space-x-2">
+          <form onSubmit={sendMessage} className="p-2 sm:p-4 border-t border-gray-200 bg-white space-y-2">
+            {replyTo && (
+              <div className="flex items-start justify-between px-2 sm:px-3 py-2 rounded-lg sm:rounded-xl bg-gray-100 text-xs text-gray-700">
+                <div className="min-w-0">
+                  <p className="font-semibold truncate">
+                    Replying to {replyTo.senderName}
+                  </p>
+                  <p className="line-clamp-2 text-xs">{replyTo.text}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelReply}
+                  className="ml-2 text-gray-400 hover:text-gray-600 flex-shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+            <div className="flex space-x-2 items-center">
               <input
                 type="text"
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="flex-1 px-4 py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                placeholder="Type message..."
+                className="flex-1 px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-500 focus:border-transparent text-sm sm:text-base"
               />
               <button
                 type="submit"
                 disabled={!newMessage.trim()}
-                className="px-6 py-3 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-full hover:from-primary-600 hover:to-accent-pink/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2 shadow-lg"
+                className="px-3 sm:px-6 py-2 sm:py-3 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-full hover:from-primary-600 hover:to-accent-pink/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1 sm:space-x-2 shadow-lg flex-shrink-0 text-sm sm:text-base"
               >
-                <Send className="h-4 w-4" />
-                <span>Send</span>
+                <Send className="h-4 w-4 flex-shrink-0" />
+                <span className="hidden sm:inline">Send</span>
               </button>
+            </div>
+            {/* Quick emoji row for composer */}
+            <div className="flex gap-1 sm:gap-2 text-lg sm:text-xl pl-2 overflow-x-auto">
+              {['😀', '😂', '😍', '😎', '🙏'].map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  onClick={() => setNewMessage((prev) => prev + emoji)}
+                  className="hover:scale-110 transition-transform flex-shrink-0"
+                >
+                  {emoji}
+                </button>
+              ))}
             </div>
           </form>
         </div>
       </div>
 
       {/* Active Users Sidebar */}
-      <div className="w-80 bg-white rounded-2xl shadow-xl flex flex-col overflow-hidden max-h-[calc(100vh-250px)]">
+      <div className="hidden lg:flex lg:w-80 bg-white rounded-2xl shadow-lg flex-col overflow-hidden max-h-[calc(100vh-200px)]">
         <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-primary-50 to-purple-50">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center space-x-2">

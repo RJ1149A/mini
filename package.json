@@ -9,10 +9,6 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.948.0",
-    "@aws-sdk/lib-storage": "^3.948.0",
-    "@aws-sdk/s3-request-presigner": "^3.948.0",
-    "@supabase/supabase-js": "^2.87.1",
     "date-fns": "^2.30.0",
     "firebase": "^10.7.0",
     "lucide-react": "^0.294.0",

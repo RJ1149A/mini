@@ -14,7 +14,8 @@ import {
   getDocs,
   where
 } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db, storage } from '@/lib/firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { 
   Upload, 
   Image as ImageIcon, 
@@ -83,14 +84,14 @@ export default function Feed({ user, userData }: FeedProps) {
 
     const unsubscribe = onSnapshot(q, async (snapshot) => {
       const postsData = await Promise.all(
-        snapshot.docs.map(async (doc) => {
-          const data = doc.data();
+        snapshot.docs.map(async (d) => {
+          const data = d.data();
           
           // Fetch comments
           let comments: Comment[] = [];
           try {
             const commentsQuery = query(
-              collection(db, 'feedPosts', doc.id, 'comments'),
+              collection(db, 'feedPosts', d.id, 'comments'),
               orderBy('timestamp', 'asc')
             );
             const commentsSnapshot = await getDocs(commentsQuery);
@@ -103,7 +104,7 @@ export default function Feed({ user, userData }: FeedProps) {
           }
 
           return {
-            id: doc.id,
+            id: d.id,
             ...data,
             comments: comments || [],
             reactions: data.reactions || {
@@ -200,53 +201,32 @@ export default function Feed({ user, userData }: FeedProps) {
 
     setUploading(true);
     setUploadProgress(0);
-    setUploadStatus('Requesting upload permission...');
+    setUploadStatus('Uploading...');
 
     try {
       const fileType = selectedFile.type.startsWith('image/') ? 'photo' : 'video';
       const fileName = `${Date.now()}_${selectedFile.name}`;
       const filePath = `feed/${user.uid}/${fileName}`;
 
-      // Get presigned URL from backend
-      const presignResponse = await fetch('/api/upload/presigned-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          filePath,
-          contentType: selectedFile.type,
-        }),
-      });
+      const storageRef = ref(storage, filePath);
+      const uploadTask = uploadBytesResumable(storageRef, selectedFile);
 
-      if (!presignResponse.ok) {
-        throw new Error('Failed to get presigned URL');
-      }
-
-      const { presignedUrl } = await presignResponse.json();
-      console.log('Got presigned URL, uploading to S3...');
-
-      setUploadStatus('Uploading...');
-
-      // Upload directly to S3 using presigned URL
-      const uploadResponse = await fetch(presignedUrl, {
-        method: 'PUT',
-        body: selectedFile,
-        headers: {
-          'Content-Type': selectedFile.type,
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setUploadProgress(progress);
         },
-      });
+        (error) => {
+          console.error('Error uploading to Firebase Storage:', error);
+          throw error;
+        }
+      );
 
-      if (!uploadResponse.ok) {
-        throw new Error(`S3 upload failed: ${uploadResponse.statusText}`);
-      }
+      await uploadTask;
 
-      console.log('S3 upload successful');
-      setUploadProgress(100);
-      setUploadStatus('Processing...');
-
-      // Construct public URL
-      const bucketName = process.env.NEXT_PUBLIC_AWS_S3_BUCKET;
-      const downloadURL = `https://${bucketName}.s3.amazonaws.com/${filePath}`;
-      console.log('Public URL:', downloadURL);
+      const downloadURL = await getDownloadURL(storageRef);
+      console.log('Firebase Storage upload successful, URL:', downloadURL);
 
       setUploadStatus('Saving post...');
       await addDoc(collection(db, 'feedPosts'), {
@@ -356,12 +336,12 @@ export default function Feed({ user, userData }: FeedProps) {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 pb-8 sm:pb-0">
       {/* Upload Button */}
-      <div className="bg-white rounded-2xl shadow-xl p-6">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
         <button
           onClick={() => setShowUploadModal(true)}
-          className="w-full py-4 px-6 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-xl font-semibold hover:from-primary-600 hover:to-accent-pink/90 transition-all flex items-center justify-center space-x-2 shadow-lg"
+          className="w-full py-3 sm:py-4 px-4 sm:px-6 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-lg sm:rounded-xl font-semibold hover:from-primary-600 hover:to-accent-pink/90 transition-all flex items-center justify-center space-x-2 shadow-lg text-sm sm:text-base"
         >
           <Upload className="h-5 w-5" />
           <span>Upload Photo or Video</span>
@@ -369,24 +349,24 @@ export default function Feed({ user, userData }: FeedProps) {
       </div>
 
       {/* Feed Posts */}
-      <div className="space-y-6">
+      <div className="space-y-4 sm:space-y-6">
         {posts.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-xl p-12 text-center">
-            <ImageIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-            <p className="text-xl font-semibold text-gray-700 mb-2">No posts yet</p>
-            <p className="text-gray-500">Be the first to share something!</p>
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-8 sm:p-12 text-center">
+            <ImageIcon className="h-12 sm:h-16 w-12 sm:w-16 mx-auto mb-3 sm:mb-4 text-gray-300" />
+            <p className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">No posts yet</p>
+            <p className="text-sm sm:text-base text-gray-500">Be the first to share something!</p>
           </div>
         ) : (
           posts.map((post) => (
-            <div key={post.id} className="bg-white rounded-2xl shadow-xl overflow-hidden">
+            <div key={post.id} className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden">
               {/* Post Header */}
-              <div className="p-4 border-b border-gray-200">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold">
+              <div className="p-3 sm:p-4 border-b border-gray-200">
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="w-8 sm:w-10 h-8 sm:h-10 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
                     {post.postedByName.charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900">{post.postedByName}</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-900 text-sm sm:text-base truncate">{post.postedByName}</p>
                     <p className="text-xs text-gray-500">
                       {post.timestamp ? format(post.timestamp.toDate(), 'MMM d, yyyy • h:mm a') : 'Just now'}
                     </p>
@@ -395,37 +375,38 @@ export default function Feed({ user, userData }: FeedProps) {
               </div>
 
               {/* Post Media */}
-              <div className="relative">
+              <div className="relative w-full">
                 {post.type === 'photo' ? (
                   <img
                     src={post.url}
                     alt={post.caption || 'Post'}
-                    className="w-full h-auto max-h-[600px] object-cover"
+                    className="w-full h-auto max-h-[400px] sm:max-h-[600px] object-cover"
                   />
                 ) : (
                   <video
                     src={post.url}
                     controls
-                    className="w-full h-auto max-h-[600px]"
+                    className="w-full h-auto max-h-[400px] sm:max-h-[600px]"
                   />
                 )}
               </div>
 
               {/* Reactions */}
-              <div className="p-4 border-b border-gray-200">
-                <div className="flex items-center space-x-4">
+              <div className="p-3 sm:p-4 border-b border-gray-200">
+                <div className="flex items-center space-x-2 overflow-x-auto pb-2">
                   <button
                     onClick={() => handleReaction(post.id, 'iloveu')}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-full transition-all ${
+                    className={`flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-full transition-all text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       hasUserReacted(post, 'iloveu')
                         ? 'bg-pink-100 text-pink-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-pink-50'
                     }`}
                   >
-                    <Heart className="h-5 w-5" />
-                    <span className="font-semibold">I Love U</span>
+                    <Heart className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                    <span className="font-semibold hidden sm:inline">I Love U</span>
+                    <span className="font-semibold sm:hidden">Love</span>
                     {getReactionCount(post, 'iloveu') > 0 && (
-                      <span className="bg-pink-500 text-white text-xs px-2 py-0.5 rounded-full">
+                      <span className="bg-pink-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                         {getReactionCount(post, 'iloveu')}
                       </span>
                     )}
@@ -433,16 +414,17 @@ export default function Feed({ user, userData }: FeedProps) {
 
                   <button
                     onClick={() => handleReaction(post.id, 'kataiZeher')}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-full transition-all ${
+                    className={`flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-full transition-all text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       hasUserReacted(post, 'kataiZeher')
                         ? 'bg-red-100 text-red-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-red-50'
                     }`}
                   >
-                    <Flame className="h-5 w-5" />
-                    <span className="font-semibold">Katai Zeher</span>
+                    <Flame className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                    <span className="font-semibold hidden sm:inline">Katai Zeher</span>
+                    <span className="font-semibold sm:hidden">Zeher</span>
                     {getReactionCount(post, 'kataiZeher') > 0 && (
-                      <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                      <span className="bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                         {getReactionCount(post, 'kataiZeher')}
                       </span>
                     )}
@@ -450,16 +432,17 @@ export default function Feed({ user, userData }: FeedProps) {
 
                   <button
                     onClick={() => handleReaction(post.id, 'kyaDekhLiya')}
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-full transition-all ${
+                    className={`flex items-center space-x-1 sm:space-x-2 px-2 sm:px-4 py-1.5 sm:py-2 rounded-full transition-all text-xs sm:text-sm whitespace-nowrap flex-shrink-0 ${
                       hasUserReacted(post, 'kyaDekhLiya')
                         ? 'bg-yellow-100 text-yellow-600'
                         : 'bg-gray-100 text-gray-600 hover:bg-yellow-50'
                     }`}
                   >
-                    <Eye className="h-5 w-5" />
-                    <span className="font-semibold">Kya Dekh Liya</span>
+                    <Eye className="h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0" />
+                    <span className="font-semibold hidden sm:inline">Kya Dekh Liya</span>
+                    <span className="font-semibold sm:hidden">Dekh</span>
                     {getReactionCount(post, 'kyaDekhLiya') > 0 && (
-                      <span className="bg-yellow-500 text-white text-xs px-2 py-0.5 rounded-full">
+                      <span className="bg-yellow-500 text-white text-xs px-1.5 py-0.5 rounded-full">
                         {getReactionCount(post, 'kyaDekhLiya')}
                       </span>
                     )}
@@ -469,18 +452,18 @@ export default function Feed({ user, userData }: FeedProps) {
 
               {/* Caption */}
               {post.caption && (
-                <div className="px-4 py-2 border-b border-gray-200">
-                  <p className="text-gray-900">
+                <div className="px-3 sm:px-4 py-2 border-b border-gray-200">
+                  <p className="text-sm sm:text-base text-gray-900">
                     <span className="font-semibold">{post.postedByName}</span> {post.caption}
                   </p>
                 </div>
               )}
 
               {/* Comments */}
-              <div className="p-4">
+              <div className="p-3 sm:p-4">
                 <button
                   onClick={() => setSelectedPost(selectedPost === post.id ? null : post.id)}
-                  className="text-sm text-gray-600 hover:text-primary-600 mb-3 flex items-center space-x-1"
+                  className="text-xs sm:text-sm text-gray-600 hover:text-primary-600 mb-3 flex items-center space-x-1"
                 >
                   <MessageCircle className="h-4 w-4" />
                   <span>
@@ -489,27 +472,27 @@ export default function Feed({ user, userData }: FeedProps) {
                 </button>
 
                 {selectedPost === post.id && (
-                  <div className="space-y-3 mt-3">
+                  <div className="space-y-2 sm:space-y-3 mt-3">
                     {post.comments && post.comments.length > 0 && (
-                      <div className="space-y-3 max-h-64 overflow-y-auto">
+                      <div className="space-y-2 sm:space-y-3 max-h-64 overflow-y-auto">
                         {post.comments.map((comment) => (
                           <div key={comment.id} className="flex items-start space-x-2">
-                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-sm">
+                            <div className="w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0">
                               {comment.commentedByName.charAt(0).toUpperCase()}
                             </div>
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2">
-                                <span className="font-semibold text-gray-900 text-sm">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center space-x-1 sm:space-x-2 flex-wrap">
+                                <span className="font-semibold text-gray-900 text-xs sm:text-sm">
                                   {comment.commentedByName}
                                 </span>
                                 {comment.streakCount && comment.streakCount > 1 && (
-                                  <span className="bg-gradient-to-r from-orange-400 to-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
-                                    <Flame className="h-3 w-3" />
-                                    <span>{comment.streakCount} streak</span>
+                                  <span className="bg-gradient-to-r from-orange-400 to-red-500 text-white text-xs px-1.5 py-0.5 rounded-full font-bold flex items-center space-x-0.5">
+                                    <Flame className="h-2.5 w-2.5" />
+                                    <span>{comment.streakCount}</span>
                                   </span>
                                 )}
                               </div>
-                              <p className="text-sm text-gray-700">{comment.text}</p>
+                              <p className="text-xs sm:text-sm text-gray-700">{comment.text}</p>
                               <p className="text-xs text-gray-500 mt-1">
                                 {comment.timestamp ? format(comment.timestamp.toDate(), 'MMM d, h:mm a') : 'Just now'}
                               </p>
@@ -521,7 +504,7 @@ export default function Feed({ user, userData }: FeedProps) {
 
                     {/* Comment Input */}
                     <div className="flex items-center space-x-2 pt-2 border-t border-gray-200">
-                      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-sm">
+                      <div className="w-6 sm:w-8 h-6 sm:h-8 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-xs sm:text-sm flex-shrink-0">
                         {(userData?.name || user?.email?.split('@')[0] || 'U').charAt(0).toUpperCase()}
                       </div>
                       <input
@@ -529,7 +512,7 @@ export default function Feed({ user, userData }: FeedProps) {
                         value={commentText[post.id] || ''}
                         onChange={(e) => setCommentText({ ...commentText, [post.id]: e.target.value })}
                         placeholder="Add a comment..."
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                        className="flex-1 px-2 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-full focus:ring-2 focus:ring-primary-500 focus:border-transparent text-xs sm:text-base"
                         onKeyPress={(e) => {
                           if (e.key === 'Enter') {
                             handleComment(post.id);
@@ -539,7 +522,7 @@ export default function Feed({ user, userData }: FeedProps) {
                       <button
                         onClick={() => handleComment(post.id)}
                         disabled={!commentText[post.id]?.trim()}
-                        className="p-2 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-full hover:from-primary-600 hover:to-accent-pink/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="p-1.5 sm:p-2 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-full hover:from-primary-600 hover:to-accent-pink/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
                       >
                         <Send className="h-4 w-4" />
                       </button>
@@ -554,10 +537,10 @@ export default function Feed({ user, userData }: FeedProps) {
 
       {/* Upload Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Upload to Feed</h2>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-3 sm:p-4">
+          <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl w-full max-w-lg sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-4 sm:p-6 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Upload to Feed</h2>
               <button
                 onClick={() => {
                   setShowUploadModal(false);
@@ -565,20 +548,20 @@ export default function Feed({ user, userData }: FeedProps) {
                   setPreview(null);
                   setCaption('');
                 }}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 sm:p-6 space-y-4">
               {preview ? (
                 <>
                   <div className="relative">
                     {selectedFile?.type.startsWith('image/') ? (
-                      <img src={preview} alt="Preview" className="w-full h-auto rounded-xl max-h-96 object-cover" />
+                      <img src={preview} alt="Preview" className="w-full h-auto rounded-lg sm:rounded-xl max-h-72 sm:max-h-96 object-cover" />
                     ) : (
-                      <video src={preview} controls className="w-full h-auto rounded-xl max-h-96" />
+                      <video src={preview} controls className="w-full h-auto rounded-lg sm:rounded-xl max-h-72 sm:max-h-96" />
                     )}
                     <button
                       onClick={() => {
@@ -586,7 +569,7 @@ export default function Feed({ user, userData }: FeedProps) {
                         setPreview(null);
                         if (fileInputRef.current) fileInputRef.current.value = '';
                       }}
-                      className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70"
+                      className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-full hover:bg-black/70 transition-colors"
                     >
                       <X className="h-4 w-4" />
                     </button>
@@ -596,17 +579,17 @@ export default function Feed({ user, userData }: FeedProps) {
                     onChange={(e) => setCaption(e.target.value)}
                     placeholder="Write a caption..."
                     rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
+                    className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none text-sm sm:text-base"
                   />
                 </>
               ) : (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-gray-300 rounded-xl p-12 text-center cursor-pointer hover:border-primary-500 transition-colors"
+                  className="border-2 border-dashed border-gray-300 rounded-lg sm:rounded-xl p-8 sm:p-12 text-center cursor-pointer hover:border-primary-500 transition-colors"
                 >
-                  <Upload className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p className="text-gray-600 font-medium mb-2">Click to upload photo or video</p>
-                  <p className="text-sm text-gray-500">PNG, JPG, MP4 up to 50MB</p>
+                  <Upload className="h-10 sm:h-12 w-10 sm:w-12 mx-auto mb-2 sm:mb-4 text-gray-400" />
+                  <p className="text-gray-600 font-medium mb-1 sm:mb-2 text-sm sm:text-base">Click to upload photo or video</p>
+                  <p className="text-xs sm:text-sm text-gray-500">PNG, JPG, MP4 up to 50MB</p>
                 </div>
               )}
 
@@ -622,13 +605,13 @@ export default function Feed({ user, userData }: FeedProps) {
                 <div className="space-y-3">
                   {uploading && (
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
+                      <div className="flex items-center justify-between text-xs sm:text-sm">
                         <span className="text-gray-700 font-medium">{uploadStatus}</span>
                         <span className="text-primary-600 font-bold">{Math.round(uploadProgress)}%</span>
                       </div>
-                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
+                      <div className="w-full bg-gray-200 rounded-full h-2 sm:h-3 overflow-hidden">
                         <div
-                          className="bg-gradient-to-r from-primary-500 to-accent-pink h-3 rounded-full transition-all duration-300 ease-out"
+                          className="bg-gradient-to-r from-primary-500 to-accent-pink h-2 sm:h-3 rounded-full transition-all duration-300 ease-out"
                           style={{ width: `${uploadProgress}%` }}
                         />
                       </div>
@@ -637,7 +620,7 @@ export default function Feed({ user, userData }: FeedProps) {
                   <button
                     onClick={handleUpload}
                     disabled={uploading}
-                    className="w-full py-3 px-6 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-xl font-semibold hover:from-primary-600 hover:to-accent-pink/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+                    className="w-full py-2 sm:py-3 px-4 sm:px-6 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-lg sm:rounded-xl font-semibold hover:from-primary-600 hover:to-accent-pink/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 text-sm sm:text-base"
                   >
                     {uploading ? (
                       <>

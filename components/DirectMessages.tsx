@@ -251,15 +251,15 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
   };
 
   return (
-    <div className="flex h-[calc(100vh-200px)] bg-white rounded-2xl shadow-xl overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-[calc(100vh-200px)] bg-white rounded-lg sm:rounded-2xl shadow-lg overflow-hidden pb-8 lg:pb-0">
       {/* Chat List Sidebar */}
-      <div className="w-1/3 border-r border-gray-200 flex flex-col bg-gradient-to-br from-purple-50 to-pink-50">
-        <div className="p-4 border-b border-gray-200 bg-white">
+      <div className="w-full lg:w-1/3 border-b lg:border-b-0 lg:border-r border-gray-200 flex flex-col bg-gradient-to-br from-purple-50 to-pink-50">
+        <div className="p-3 sm:p-4 border-b border-gray-200 bg-white">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-bold text-gray-900">Messages</h2>
+            <h2 className="text-base sm:text-xl font-bold text-gray-900">Messages</h2>
             <button
               onClick={() => setShowAddFriends(!showAddFriends)}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-primary-600"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-primary-600 flex-shrink-0"
               title="Add friends to chat"
             >
               <Plus className="h-5 w-5" />
@@ -274,7 +274,7 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                 placeholder="Search messages..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
           ) : (
@@ -285,18 +285,18 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                 placeholder="Search batchmates..."
                 value={friendSearchQuery}
                 onChange={(e) => setFriendSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
               />
             </div>
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto max-h-[300px] sm:max-h-none">
           {showAddFriends ? (
             // Add Friends View
             <>
               <div className="p-3 bg-white border-b border-gray-200">
-                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                <div className="flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
                   <Users className="h-4 w-4" />
                   <span>Available Batchmates</span>
                 </div>
@@ -311,8 +311,8 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                 !chatUsers.find(cu => cu.uid === u.uid)
               ).length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
-                  <Users className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p className="text-sm">No new batchmates to add</p>
+                  <Users className="h-8 sm:h-12 w-8 sm:w-12 mx-auto mb-2 sm:mb-3 text-gray-300" />
+                  <p className="text-xs sm:text-sm">No new batchmates to add</p>
                 </div>
               ) : (
                 allUsers
@@ -328,28 +328,28 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                         setSelectedUser(newUser);
                         setShowAddFriends(false);
                       }}
-                      className="w-full p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100"
+                      className="w-full p-3 sm:p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100"
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className="relative">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                        <div className="relative flex-shrink-0">
+                          <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-lg">
                             {newUser.name.charAt(0).toUpperCase()}
                           </div>
                           {newUser.isOnline && (
-                            <Circle className="absolute -bottom-1 -right-1 h-4 w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
+                            <Circle className="absolute -bottom-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-semibold text-gray-900 truncate">{newUser.name}</p>
-                          <p className="text-sm text-gray-600 truncate">{newUser.email}</p>
-                          <div className="flex items-center space-x-2 mt-1">
+                          <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">{newUser.name}</p>
+                          <p className="text-xs sm:text-sm text-gray-600 truncate">{newUser.email}</p>
+                          <div className="flex items-center space-x-1 sm:space-x-2 mt-1 flex-wrap gap-1">
                             {newUser.year && (
-                              <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full">
+                              <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full whitespace-nowrap">
                                 {newUser.year}
                               </span>
                             )}
                             {newUser.section && (
-                              <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full">
+                              <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full whitespace-nowrap">
                                 Sec {newUser.section}
                               </span>
                             )}
@@ -372,7 +372,7 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                 u.email.toLowerCase().includes(searchQuery.toLowerCase())
               ).length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
-                  <p>No users found</p>
+                  <p className="text-sm">No users found</p>
                 </div>
               ) : (
                 chatUsers
@@ -384,54 +384,54 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                     <button
                       key={chatUser.uid}
                       onClick={() => setSelectedUser(chatUser)}
-                      className={`w-full p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100 ${
+                      className={`w-full p-3 sm:p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100 ${
                         selectedUser?.uid === chatUser.uid ? 'bg-white shadow-md' : ''
                       }`}
                     >
-                      <div className="flex items-center space-x-3">
-                        <div className="relative">
-                          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-lg shadow-lg">
+                      <div className="flex items-center space-x-2 sm:space-x-3">
+                        <div className="relative flex-shrink-0">
+                          <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-lg">
                             {chatUser.name.charAt(0).toUpperCase()}
                           </div>
                           {chatUser.isOnline && (
-                            <Circle className="absolute -bottom-1 -right-1 h-4 w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
+                            <Circle className="absolute -bottom-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <div className="flex items-center space-x-2 flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 truncate">{chatUser.name}</p>
+                          <div className="flex items-center justify-between mb-1 gap-2">
+                            <div className="flex items-center space-x-1 flex-1 min-w-0">
+                              <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">{chatUser.name}</p>
                               {chatUser.pronouns && (
-                                <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded-full whitespace-nowrap">
+                                <span className="text-xs px-1 py-0.5 bg-purple-100 text-purple-700 rounded-full whitespace-nowrap hidden sm:inline">
                                   {chatUser.pronouns}
                                 </span>
                               )}
                             </div>
                             {chatUser.unreadCount && chatUser.unreadCount > 0 && (
-                              <span className="bg-primary-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2">
+                              <span className="bg-primary-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2 flex-shrink-0">
                                 {chatUser.unreadCount}
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center space-x-2 mb-1">
+                          <div className="flex items-center space-x-1 mb-1 flex-wrap gap-1">
                             {chatUser.year && (
-                              <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full">
+                              <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full whitespace-nowrap">
                                 {chatUser.year}
                               </span>
                             )}
                             {chatUser.section && (
-                              <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full">
+                              <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full whitespace-nowrap">
                                 Sec {chatUser.section}
                               </span>
                             )}
                             {chatUser.branch && (
-                              <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full truncate max-w-[100px]">
+                              <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full truncate max-w-[100px] whitespace-nowrap hidden sm:inline">
                                 {chatUser.branch.split(' ')[0]}
                               </span>
                             )}
                           </div>
                           {chatUser.lastMessage && (
-                            <p className="text-sm text-gray-600 truncate">{chatUser.lastMessage}</p>
+                            <p className="text-xs sm:text-sm text-gray-600 truncate">{chatUser.lastMessage}</p>
                           )}
                         </div>
                       </div>
@@ -444,7 +444,7 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
       </div>
 
       {/* Chat Window */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 hidden lg:flex flex-col">
         {selectedUser ? (
           <>
             <div className="p-4 border-b border-gray-200 bg-white">
