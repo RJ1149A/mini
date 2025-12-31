@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { User, Save, Edit2, GraduationCap, BookOpen, Users, Heart, FileText } from 'lucide-react';
+import { ProfileSkeleton } from './Skeleton';
 
 interface ProfileProps {
   user: any;
@@ -85,14 +86,14 @@ export default function Profile({ user, userData, onUpdate }: ProfileProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
+      <div>
+        <ProfileSkeleton />
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-8 sm:pb-0">
+    <div className="space-y-6 animate-slideUp">
       {/* Profile Header Card */}
       <div className="bg-gradient-to-br from-primary-500 via-accent-pink to-accent-purple rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-8 text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 w-40 sm:w-64 h-40 sm:h-64 bg-white/10 rounded-full -mr-20 sm:-mr-32 -mt-20 sm:-mt-32"></div>

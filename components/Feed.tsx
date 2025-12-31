@@ -29,6 +29,7 @@ import {
   Eye
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { CardSkeleton } from './Skeleton';
 
 interface Post {
   id: string;
@@ -338,10 +339,10 @@ export default function Feed({ user, userData }: FeedProps) {
   return (
     <div className="space-y-4 sm:space-y-6 pb-8 sm:pb-0">
       {/* Upload Button */}
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-4 sm:p-6 animate-slideDown">
         <button
           onClick={() => setShowUploadModal(true)}
-          className="w-full py-3 sm:py-4 px-4 sm:px-6 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-lg sm:rounded-xl font-semibold hover:from-primary-600 hover:to-accent-pink/90 transition-all flex items-center justify-center space-x-2 shadow-lg text-sm sm:text-base"
+          className="w-full py-3 sm:py-4 px-4 sm:px-6 bg-gradient-to-r from-primary-500 to-accent-pink text-white rounded-lg sm:rounded-xl font-semibold hover:from-primary-600 hover:to-accent-pink/90 transition-all flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl btn-transition text-sm sm:text-base active:scale-95"
         >
           <Upload className="h-5 w-5" />
           <span>Upload Photo or Video</span>
@@ -352,13 +353,25 @@ export default function Feed({ user, userData }: FeedProps) {
       <div className="space-y-4 sm:space-y-6">
         {posts.length === 0 ? (
           <div className="bg-white rounded-xl sm:rounded-2xl shadow-lg p-8 sm:p-12 text-center">
-            <ImageIcon className="h-12 sm:h-16 w-12 sm:w-16 mx-auto mb-3 sm:mb-4 text-gray-300" />
-            <p className="text-lg sm:text-xl font-semibold text-gray-700 mb-2">No posts yet</p>
-            <p className="text-sm sm:text-base text-gray-500">Be the first to share something!</p>
+            <div className="mb-4 flex justify-center">
+              <div className="p-4 bg-gradient-to-br from-primary-100 to-pink-100 rounded-full">
+                <ImageIcon className="h-12 sm:h-16 w-12 sm:w-16 text-primary-500" />
+              </div>
+            </div>
+            <p className="text-lg sm:text-xl font-bold text-gray-800 mb-2">No posts yet</p>
+            <p className="text-sm sm:text-base text-gray-600 mb-4">Be the first to share something amazing!</p>
+            <p className="text-xs sm:text-sm text-gray-500">Click the upload button to share a photo or video with your batchmates</p>
+          </div>
+        ) : uploading ? (
+          <div className="space-y-4 sm:space-y-6">
+            {[1, 2].map((i) => (
+              <CardSkeleton key={i} />
+            ))}
           </div>
         ) : (
           posts.map((post) => (
-            <div key={post.id} className="bg-white rounded-xl sm:rounded-2xl shadow-lg overflow-hidden">
+            <div key={post.id} className="bg-white rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl card-transition hover:scale-[1.01] overflow-hidden animate-slideUp">
+
               {/* Post Header */}
               <div className="p-3 sm:p-4 border-b border-gray-200">
                 <div className="flex items-center space-x-2 sm:space-x-3">

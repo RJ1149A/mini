@@ -16,8 +16,9 @@ import {
   setDoc
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Send, Search, Circle, Plus, Users, X } from 'lucide-react';
+import { Send, Search, Circle, Plus, Users, X, MessageSquare } from 'lucide-react';
 import { format } from 'date-fns';
+import { UserListSkeleton } from './Skeleton';
 
 interface Message {
   id: string;
@@ -302,17 +303,20 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                 </div>
               </div>
               {loading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
-                </div>
+                <UserListSkeleton />
               ) : allUsers.filter(u =>
                 (u.name.toLowerCase().includes(friendSearchQuery.toLowerCase()) ||
                 u.email.toLowerCase().includes(friendSearchQuery.toLowerCase())) &&
                 !chatUsers.find(cu => cu.uid === u.uid)
               ).length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
-                  <Users className="h-8 sm:h-12 w-8 sm:w-12 mx-auto mb-2 sm:mb-3 text-gray-300" />
-                  <p className="text-xs sm:text-sm">No new batchmates to add</p>
+                  <div className="flex justify-center mb-3">
+                    <div className="p-3 bg-purple-100 rounded-full">
+                      <Users className="h-8 w-8 text-purple-500" />
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold">No new batchmates</p>
+                  <p className="text-xs mt-1">Try different search terms</p>
                 </div>
               ) : (
                 allUsers
@@ -372,7 +376,13 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                 u.email.toLowerCase().includes(searchQuery.toLowerCase())
               ).length === 0 ? (
                 <div className="p-4 text-center text-gray-500">
-                  <p className="text-sm">No users found</p>
+                  <div className="flex justify-center mb-3">
+                    <div className="p-3 bg-blue-100 rounded-full">
+                      <MessageSquare className="h-8 w-8 text-blue-500" />
+                    </div>
+                  </div>
+                  <p className="text-sm font-semibold">No conversations yet</p>
+                  <p className="text-xs mt-1">Start chatting with batchmates</p>
                 </div>
               ) : (
                 chatUsers

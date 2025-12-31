@@ -19,6 +19,7 @@ import {
 import { db } from '@/lib/firebase';
 import { Send, MessageCircle, Users, Search, Plus, MessageSquare, Circle, UserPlus, Check, Clock } from 'lucide-react';
 import { format } from 'date-fns';
+import { ChatSkeleton } from './Skeleton';
 
 interface Message {
   id: string;
@@ -291,13 +292,13 @@ export default function Chat({ user }: ChatProps) {
 
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gradient-to-b from-gray-50 to-white">
             {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
-              </div>
+              <ChatSkeleton />
             ) : messages.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-gray-500">
-                <MessageCircle className="h-10 sm:h-12 w-10 sm:w-12 mb-2 sm:mb-3 text-gray-300" />
-                <p className="text-base sm:text-lg font-medium">No messages yet</p>
+                <div className="p-4 bg-gradient-to-br from-primary-100 to-pink-100 rounded-full mb-4">
+                  <MessageCircle className="h-10 sm:h-12 w-10 sm:w-12 text-primary-500" />
+                </div>
+                <p className="text-base sm:text-lg font-semibold">No messages yet</p>
                 <p className="text-xs sm:text-sm">Start the conversation!</p>
               </div>
             ) : (
