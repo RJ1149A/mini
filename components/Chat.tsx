@@ -17,7 +17,7 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Send, MessageCircle, Users, Search, Plus, MessageSquare, Circle, UserPlus, Check, Clock } from 'lucide-react';
+import { Send, MessageCircle, Users, Search, Plus, MessageSquare, Circle, UserPlus, Check, Clock, X, Bell } from 'lucide-react';
 import { format } from 'date-fns';
 import { ChatSkeleton } from './Skeleton';
 
@@ -57,6 +57,8 @@ export default function Chat({ user }: ChatProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sendingRequest, setSendingRequest] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [pendingRequests, setPendingRequests] = useState<any[]>([]);
+  const [showRequests, setShowRequests] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -174,9 +176,87 @@ export default function Chat({ user }: ChatProps) {
     }
   }, [user?.uid]);
 
+  // Real-time listener for friend request changes (sent or received)
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    try {
+      const receivedQuery = query(
+        collection(db, 'friendRequests'),
+        where('toId', '==', user.uid)
+      );
+      const sentQuery = query(
+        collection(db, 'friendRequests'),
+        where('fromId', '==', user.uid)
+      );
+
+      const unsubReceived = onSnapshot(receivedQuery, (snapshot) => {
+        setActiveUsers((prev) => {
+          if (!prev || prev.length === 0) return prev;
+          const updated = prev.map((u) => ({ ...u }));
+
+          snapshot.docs.forEach((docSnap) => {
+            const data: any = docSnap.data();
+            const otherId = data.fromId;
+            const idx = updated.findIndex((x) => x.uid === otherId);
+            if (idx > -1) {
+              updated[idx].friendRequestStatus = data.status === 'pending' ? 'pending' : data.status === 'accepted' ? 'accepted' : updated[idx].friendRequestStatus || 'none';
+            }
+          });
+
+          return updated;
+        });
+      });
+
+      const unsubSent = onSnapshot(sentQuery, (snapshot) => {
+        setActiveUsers((prev) => {
+          if (!prev || prev.length === 0) return prev;
+          const updated = prev.map((u) => ({ ...u }));
+
+          snapshot.docs.forEach((docSnap) => {
+            const data: any = docSnap.data();
+            const otherId = data.toId;
+            const idx = updated.findIndex((x) => x.uid === otherId);
+            if (idx > -1) {
+              updated[idx].friendRequestStatus = data.status === 'pending' ? 'sent' : data.status === 'accepted' ? 'accepted' : updated[idx].friendRequestStatus || 'none';
+            }
+          });
+
+          return updated;
+        });
+      });
+
+      return () => {
+        unsubReceived();
+        unsubSent();
+      };
+    } catch (error) {
+      console.error('Error setting up friendRequests listeners:', error);
+    }
+  }, [user?.uid]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Listen for incoming pending friend requests for the current user
+  useEffect(() => {
+    if (!user?.uid) return;
+    try {
+      const q = query(
+        collection(db, 'friendRequests'),
+        where('toId', '==', user.uid),
+        where('status', '==', 'pending')
+      );
+      const unsub = onSnapshot(q, (snapshot) => {
+        const list: any[] = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setPendingRequests(list);
+      });
+      return () => unsub();
+    } catch (error) {
+      console.error('Error listening pending friend requests:', error);
+    }
+  }, [user?.uid]);
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -230,6 +310,35 @@ export default function Chat({ user }: ChatProps) {
       await updateDoc(messageRef, { reactions: updatedReactions });
     } catch (error) {
       console.error('Error toggling reaction:', error);
+    }
+  };
+
+  const acceptFriendRequest = async (fromUserId: string) => {
+    if (!user?.uid) return;
+    try {
+      const requestId = `${fromUserId}_${user.uid}`;
+      const reqRef = doc(db, 'friendRequests', requestId);
+      await updateDoc(reqRef, { status: 'accepted', acceptedAt: serverTimestamp() });
+
+      setActiveUsers((prev) => prev.map(u => u.uid === fromUserId ? { ...u, friendRequestStatus: 'accepted' } : u));
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      alert('Could not accept friend request. Check console for details.');
+    }
+  };
+
+  const declineFriendRequest = async (fromUserId: string) => {
+    if (!user?.uid) return;
+    try {
+      const requestId = `${fromUserId}_${user.uid}`;
+      const reqRef = doc(db, 'friendRequests', requestId);
+      // Mark as declined so we keep an audit trail; alternatively you could delete the doc
+      await updateDoc(reqRef, { status: 'declined', declinedAt: serverTimestamp() });
+
+      setActiveUsers((prev) => prev.map(u => u.uid === fromUserId ? { ...u, friendRequestStatus: 'none' } : u));
+    } catch (error) {
+      console.error('Error declining friend request:', error);
+      alert('Could not decline friend request. Check console for details.');
     }
   };
 
@@ -288,6 +397,40 @@ export default function Chat({ user }: ChatProps) {
             </div>
             <h2 className="text-base sm:text-xl font-bold text-gray-900">Group Chat</h2>
             <span className="ml-auto text-xs sm:text-sm text-gray-500 whitespace-nowrap">{messages.length} messages</span>
+            <div className="relative ml-3">
+              <button
+                onClick={() => setShowRequests((s) => !s)}
+                className="relative p-2 rounded-md hover:bg-gray-100"
+                title="Friend requests"
+              >
+                <Bell className="h-4 w-4 text-gray-600" />
+                {pendingRequests.length > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] px-1 rounded-full">{pendingRequests.length}</span>
+                )}
+              </button>
+
+              {showRequests && (
+                <div className="absolute right-0 mt-2 w-64 bg-white border rounded-lg shadow-lg z-50 p-2">
+                  <h4 className="text-sm font-semibold px-2">Friend Requests</h4>
+                  {pendingRequests.length === 0 ? (
+                    <p className="text-xs text-gray-500 px-2 py-2">No new requests</p>
+                  ) : (
+                    pendingRequests.map((r) => (
+                      <div key={r.id} className="flex items-center justify-between px-2 py-2 border-t">
+                        <div>
+                          <p className="text-sm font-medium">{r.fromName}</p>
+                          <p className="text-xs text-gray-500">Requested</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => acceptFriendRequest(r.fromId)} className="px-2 py-1 bg-green-50 text-green-700 rounded text-xs">Accept</button>
+                          <button onClick={() => declineFriendRequest(r.fromId)} className="px-2 py-1 bg-red-50 text-red-600 rounded text-xs">Decline</button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gradient-to-b from-gray-50 to-white">
@@ -539,13 +682,24 @@ export default function Chat({ user }: ChatProps) {
                           <Clock className="h-4 w-4" />
                         </button>
                       ) : activeUser.friendRequestStatus === 'pending' ? (
-                        <button
-                          disabled
-                          className="flex-shrink-0 p-2 rounded-lg text-blue-500"
-                          title="Friend request received"
-                        >
-                          <Clock className="h-4 w-4" />
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => acceptFriendRequest(activeUser.uid)}
+                            className="flex-shrink-0 px-3 py-1 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition"
+                            title="Accept friend request"
+                          >
+                            <Check className="h-4 w-4 inline-block mr-1" />
+                            <span className="text-xs">Accept</span>
+                          </button>
+                          <button
+                            onClick={() => declineFriendRequest(activeUser.uid)}
+                            className="flex-shrink-0 px-3 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition"
+                            title="Decline friend request"
+                          >
+                            <X className="h-4 w-4 inline-block mr-1" />
+                            <span className="text-xs">Decline</span>
+                          </button>
+                        </div>
                       ) : (
                         <button
                           onClick={() => sendFriendRequest(activeUser.uid, activeUser.name)}
