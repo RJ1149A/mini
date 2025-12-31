@@ -54,6 +54,7 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
   const [selectedUser, setSelectedUser] = useState<ChatUser | null>(null);
   const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
   const [allUsers, setAllUsers] = useState<ChatUser[]>([]);
+  const [acceptedFriends, setAcceptedFriends] = useState<string[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,6 +62,25 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
   const [showAddFriends, setShowAddFriends] = useState(false);
   const [friendSearchQuery, setFriendSearchQuery] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Listener for accepted friends (real-time)
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    try {
+      const q = query(
+        collection(db, 'friends'),
+        where('userId1', '==', user.uid)
+      );
+      const unsub = onSnapshot(q, (snapshot) => {
+        const friendIds = snapshot.docs.map((doc) => doc.data().userId2);
+        setAcceptedFriends(friendIds);
+      });
+      return () => unsub();
+    } catch (error) {
+      console.error('Error listening for friends:', error);
+    }
+  }, [user?.uid]);
 
   // Fetch all users for chat list
   useEffect(() => {
@@ -136,16 +156,6 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
             pronouns: userData.pronouns || '',
           });
         }
-        
-        // Sort by last message time or online status
-        usersList.sort((a, b) => {
-          if (a.isOnline && !b.isOnline) return -1;
-          if (!a.isOnline && b.isOnline) return 1;
-          if (a.lastMessageTime && b.lastMessageTime) {
-            return b.lastMessageTime.toMillis() - a.lastMessageTime.toMillis();
-          }
-          return 0;
-        });
         
         // Store both chat users and all users
         setChatUsers(usersList);
@@ -371,82 +381,163 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
                 <div className="flex items-center justify-center h-full">
                   <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500"></div>
                 </div>
-              ) : chatUsers.filter(u =>
-                u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                u.email.toLowerCase().includes(searchQuery.toLowerCase())
-              ).length === 0 ? (
-                <div className="p-4 text-center text-gray-500">
-                  <div className="flex justify-center mb-3">
-                    <div className="p-3 bg-blue-100 rounded-full">
-                      <MessageSquare className="h-8 w-8 text-blue-500" />
-                    </div>
-                  </div>
-                  <p className="text-sm font-semibold">No conversations yet</p>
-                  <p className="text-xs mt-1">Start chatting with batchmates</p>
-                </div>
               ) : (
-                chatUsers
-                  .filter(u =>
+                <>
+                  {/* Friends Section */}
+                  {acceptedFriends.length > 0 && (
+                    <>
+                      <div className="sticky top-0 px-3 sm:px-4 py-2 bg-white border-b border-gray-200 text-xs font-bold text-gray-600 uppercase">
+                        Friends ({acceptedFriends.length})
+                      </div>
+                      {chatUsers
+                        .filter(u => acceptedFriends.includes(u.uid) && (
+                          u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          u.email.toLowerCase().includes(searchQuery.toLowerCase())
+                        ))
+                        .map((chatUser) => (
+                          <button
+                            key={chatUser.uid}
+                            onClick={() => setSelectedUser(chatUser)}
+                            className={`w-full p-3 sm:p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100 bg-green-50/30 ${
+                              selectedUser?.uid === chatUser.uid ? 'bg-white shadow-md' : ''
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2 sm:space-x-3">
+                              <div className="relative flex-shrink-0">
+                                <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-lg">
+                                  {chatUser.name.charAt(0).toUpperCase()}
+                                </div>
+                                {chatUser.isOnline && (
+                                  <Circle className="absolute -bottom-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1 gap-2">
+                                  <div className="flex items-center space-x-1 flex-1 min-w-0">
+                                    <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">{chatUser.name}</p>
+                                    {chatUser.pronouns && (
+                                      <span className="text-xs px-1 py-0.5 bg-purple-100 text-purple-700 rounded-full whitespace-nowrap hidden sm:inline">
+                                        {chatUser.pronouns}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {chatUser.unreadCount && chatUser.unreadCount > 0 && (
+                                    <span className="bg-primary-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2 flex-shrink-0">
+                                      {chatUser.unreadCount}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-1 mb-1 flex-wrap gap-1">
+                                  {chatUser.year && (
+                                    <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full whitespace-nowrap">
+                                      {chatUser.year}
+                                    </span>
+                                  )}
+                                  {chatUser.section && (
+                                    <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full whitespace-nowrap">
+                                      Sec {chatUser.section}
+                                    </span>
+                                  )}
+                                </div>
+                                {chatUser.lastMessage && (
+                                  <p className="text-xs sm:text-sm text-gray-600 truncate">{chatUser.lastMessage}</p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                    </>
+                  )}
+
+                  {/* Other Users Section */}
+                  {chatUsers.filter(u =>
+                    !acceptedFriends.includes(u.uid) && (
+                      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                      u.email.toLowerCase().includes(searchQuery.toLowerCase())
+                    )
+                  ).length > 0 && (
+                    <>
+                      <div className="sticky top-0 px-3 sm:px-4 py-2 bg-white border-b border-gray-200 text-xs font-bold text-gray-600 uppercase">
+                        Other Batchmates
+                      </div>
+                      {chatUsers
+                        .filter(u =>
+                          !acceptedFriends.includes(u.uid) && (
+                            u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            u.email.toLowerCase().includes(searchQuery.toLowerCase())
+                          )
+                        )
+                        .map((chatUser) => (
+                          <button
+                            key={chatUser.uid}
+                            onClick={() => setSelectedUser(chatUser)}
+                            className={`w-full p-3 sm:p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100 ${
+                              selectedUser?.uid === chatUser.uid ? 'bg-white shadow-md' : ''
+                            }`}
+                          >
+                            <div className="flex items-center space-x-2 sm:space-x-3">
+                              <div className="relative flex-shrink-0">
+                                <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-lg">
+                                  {chatUser.name.charAt(0).toUpperCase()}
+                                </div>
+                                {chatUser.isOnline && (
+                                  <Circle className="absolute -bottom-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between mb-1 gap-2">
+                                  <div className="flex items-center space-x-1 flex-1 min-w-0">
+                                    <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">{chatUser.name}</p>
+                                    {chatUser.pronouns && (
+                                      <span className="text-xs px-1 py-0.5 bg-purple-100 text-purple-700 rounded-full whitespace-nowrap hidden sm:inline">
+                                        {chatUser.pronouns}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {chatUser.unreadCount && chatUser.unreadCount > 0 && (
+                                    <span className="bg-primary-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2 flex-shrink-0">
+                                      {chatUser.unreadCount}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-1 mb-1 flex-wrap gap-1">
+                                  {chatUser.year && (
+                                    <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full whitespace-nowrap">
+                                      {chatUser.year}
+                                    </span>
+                                  )}
+                                  {chatUser.section && (
+                                    <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full whitespace-nowrap">
+                                      Sec {chatUser.section}
+                                    </span>
+                                  )}
+                                </div>
+                                {chatUser.lastMessage && (
+                                  <p className="text-xs sm:text-sm text-gray-600 truncate">{chatUser.lastMessage}</p>
+                                )}
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                    </>
+                  )}
+
+                  {/* Empty state */}
+                  {chatUsers.filter(u =>
                     u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     u.email.toLowerCase().includes(searchQuery.toLowerCase())
-                  )
-                  .map((chatUser) => (
-                    <button
-                      key={chatUser.uid}
-                      onClick={() => setSelectedUser(chatUser)}
-                      className={`w-full p-3 sm:p-4 text-left hover:bg-white/70 transition-all border-b border-gray-100 ${
-                        selectedUser?.uid === chatUser.uid ? 'bg-white shadow-md' : ''
-                      }`}
-                    >
-                      <div className="flex items-center space-x-2 sm:space-x-3">
-                        <div className="relative flex-shrink-0">
-                          <div className="w-10 sm:w-12 h-10 sm:h-12 rounded-full bg-gradient-to-br from-primary-400 to-accent-pink flex items-center justify-center text-white font-bold text-sm sm:text-lg shadow-lg">
-                            {chatUser.name.charAt(0).toUpperCase()}
-                          </div>
-                          {chatUser.isOnline && (
-                            <Circle className="absolute -bottom-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 text-green-500 fill-green-500 bg-white rounded-full border-2 border-white" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1 gap-2">
-                            <div className="flex items-center space-x-1 flex-1 min-w-0">
-                              <p className="font-semibold text-gray-900 truncate text-sm sm:text-base">{chatUser.name}</p>
-                              {chatUser.pronouns && (
-                                <span className="text-xs px-1 py-0.5 bg-purple-100 text-purple-700 rounded-full whitespace-nowrap hidden sm:inline">
-                                  {chatUser.pronouns}
-                                </span>
-                              )}
-                            </div>
-                            {chatUser.unreadCount && chatUser.unreadCount > 0 && (
-                              <span className="bg-primary-500 text-white text-xs font-bold rounded-full px-2 py-0.5 ml-2 flex-shrink-0">
-                                {chatUser.unreadCount}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-1 mb-1 flex-wrap gap-1">
-                            {chatUser.year && (
-                              <span className="text-xs px-1.5 py-0.5 bg-primary-100 text-primary-700 rounded-full whitespace-nowrap">
-                                {chatUser.year}
-                              </span>
-                            )}
-                            {chatUser.section && (
-                              <span className="text-xs px-1.5 py-0.5 bg-pink-100 text-pink-700 rounded-full whitespace-nowrap">
-                                Sec {chatUser.section}
-                              </span>
-                            )}
-                            {chatUser.branch && (
-                              <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded-full truncate max-w-[100px] whitespace-nowrap hidden sm:inline">
-                                {chatUser.branch.split(' ')[0]}
-                              </span>
-                            )}
-                          </div>
-                          {chatUser.lastMessage && (
-                            <p className="text-xs sm:text-sm text-gray-600 truncate">{chatUser.lastMessage}</p>
-                          )}
+                  ).length === 0 && (
+                    <div className="p-4 text-center text-gray-500">
+                      <div className="flex justify-center mb-3">
+                        <div className="p-3 bg-blue-100 rounded-full">
+                          <MessageSquare className="h-8 w-8 text-blue-500" />
                         </div>
                       </div>
-                    </button>
-                  ))
+                      <p className="text-sm font-semibold">No conversations yet</p>
+                      <p className="text-xs mt-1">Start chatting with batchmates</p>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}

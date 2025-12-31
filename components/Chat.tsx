@@ -318,7 +318,30 @@ export default function Chat({ user }: ChatProps) {
     try {
       const requestId = `${fromUserId}_${user.uid}`;
       const reqRef = doc(db, 'friendRequests', requestId);
+      const fromUser = activeUsers.find(u => u.uid === fromUserId);
+      
       await updateDoc(reqRef, { status: 'accepted', acceptedAt: serverTimestamp() });
+
+      // Create bidirectional friendship documents
+      if (fromUser) {
+        const user1Name = fromUser.name;
+        const user2Name = user.displayName || user.email?.split('@')[0] || 'Unknown';
+        // Both directions for easy querying
+        await setDoc(doc(db, 'friends', `${fromUserId}_${user.uid}`), {
+          userId1: fromUserId,
+          userId2: user.uid,
+          user1Name,
+          user2Name,
+          createdAt: serverTimestamp(),
+        });
+        await setDoc(doc(db, 'friends', `${user.uid}_${fromUserId}`), {
+          userId1: user.uid,
+          userId2: fromUserId,
+          user1Name: user2Name,
+          user2Name: user1Name,
+          createdAt: serverTimestamp(),
+        });
+      }
 
       setActiveUsers((prev) => prev.map(u => u.uid === fromUserId ? { ...u, friendRequestStatus: 'accepted' } : u));
     } catch (error) {
