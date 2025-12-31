@@ -74,6 +74,7 @@ export default function DirectMessages({ user }: DirectMessagesProps) {
       );
       const unsub = onSnapshot(q, (snapshot) => {
         const friendIds = snapshot.docs.map((doc) => doc.data().userId2);
+        console.log('Accepted friends loaded:', friendIds);
         setAcceptedFriends(friendIds);
       });
       return () => unsub();
